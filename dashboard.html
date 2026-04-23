@@ -485,47 +485,59 @@
       showBalance('paper');
       brokerSel.addEventListener('change', () => showBalance(brokerSel.value));
 
-      // Load all trades
-      const { data: allTrades } = await sbClient.from('trades').select('id,status,pnl,symbol,action,price,quantity').eq('user_id', user.id);
-
-      // Active trades count
-      const activeCount = (allTrades || []).filter(t => t.status === 'open' || t.status === 'filled').length;
-      const sysEl = document.getElementById('stat-systems');
-      if (sysEl) sysEl.textContent = activeCount;
-      const subEl = sysEl?.closest('.stat-card')?.querySelector('.sub');
-      if (subEl) subEl.textContent = activeCount === 0 ? 'No trades running' : `${activeCount} trade${activeCount !== 1 ? 's' : ''} running`;
-
-      // P&L: closed trades + live open position P&L
-      const closedPnl = (allTrades || [])
-        .filter(t => t.status === 'closed' && t.pnl != null)
-        .reduce((sum, t) => sum + parseFloat(t.pnl), 0);
-
-      // Fetch live prices for open positions
-      const openTrades = (allTrades || []).filter(t => t.status === 'filled' && t.symbol && t.price && t.quantity);
-      let livePnl = 0;
-      await Promise.all(openTrades.map(async t => {
-        try {
-          const res = await fetch(`${SUPABASE_URL}/functions/v1/get-price?symbol=${encodeURIComponent(t.symbol)}`, { headers: { 'apikey': SUPABASE_ANON_KEY } });
-          const j = await res.json();
-          if (j.price) {
-            const diff = t.action === 'buy' ? (j.price - t.price) * t.quantity : (t.price - j.price) * t.quantity;
-            livePnl += diff;
-          }
-        } catch {}
-      }));
-
-      const totalPnl = closedPnl + livePnl;
-      const pnlCard = document.querySelector('.stat-card:last-child');
-      if (pnlCard) {
-        const pnlVal = pnlCard.querySelector('.value');
-        const pnlSub = pnlCard.querySelector('.sub');
-        if (pnlVal) {
-          pnlVal.textContent = (totalPnl >= 0 ? '+$' : '-$') + Math.abs(totalPnl).toFixed(2);
-          pnlVal.style.color = totalPnl >= 0 ? 'var(--accent)' : 'var(--red)';
+      async function refreshStats() {
+        // Refresh balance
+        const { data: freshAcct } = await sbClient.from('paper_accounts').select('balance').eq('user_id', user.id).maybeSingle();
+        const freshBalance = freshAcct?.balance ?? 100000;
+        if (brokerSel.value === 'paper') {
+          balEl.textContent = '$' + freshBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
-        const closedCount = (allTrades || []).filter(t => t.status === 'closed').length;
-        if (pnlSub) pnlSub.textContent = `${closedCount} closed · ${openTrades.length} open`;
+
+        // Load all trades
+        const { data: allTrades } = await sbClient.from('trades').select('id,status,pnl,symbol,action,price,quantity').eq('user_id', user.id);
+
+        // Active trades count
+        const activeCount = (allTrades || []).filter(t => t.status === 'open' || t.status === 'filled').length;
+        const sysEl = document.getElementById('stat-systems');
+        if (sysEl) sysEl.textContent = activeCount;
+        const subEl = sysEl?.closest('.stat-card')?.querySelector('.sub');
+        if (subEl) subEl.textContent = activeCount === 0 ? 'No trades running' : `${activeCount} trade${activeCount !== 1 ? 's' : ''} running`;
+
+        // P&L: closed trades + live open position P&L
+        const closedPnl = (allTrades || [])
+          .filter(t => t.status === 'closed' && t.pnl != null)
+          .reduce((sum, t) => sum + parseFloat(t.pnl), 0);
+
+        const openTrades = (allTrades || []).filter(t => t.status === 'filled' && t.symbol && t.price && t.quantity);
+        let livePnl = 0;
+        await Promise.all(openTrades.map(async t => {
+          try {
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/get-price?symbol=${encodeURIComponent(t.symbol)}`, { headers: { 'apikey': SUPABASE_ANON_KEY } });
+            const j = await res.json();
+            if (j.price) {
+              const diff = t.action === 'buy' ? (j.price - t.price) * t.quantity : (t.price - j.price) * t.quantity;
+              livePnl += diff;
+            }
+          } catch {}
+        }));
+
+        const totalPnl = closedPnl + livePnl;
+        const pnlCard = document.querySelector('.stat-card:last-child');
+        if (pnlCard) {
+          const pnlVal = pnlCard.querySelector('.value');
+          const pnlSub = pnlCard.querySelector('.sub');
+          if (pnlVal) {
+            pnlVal.textContent = (totalPnl >= 0 ? '+$' : '-$') + Math.abs(totalPnl).toFixed(2);
+            pnlVal.style.color = totalPnl >= 0 ? 'var(--accent)' : 'var(--red)';
+          }
+          const closedCount = (allTrades || []).filter(t => t.status === 'closed').length;
+          if (pnlSub) pnlSub.textContent = `${closedCount} closed · ${openTrades.length} open`;
+        }
       }
+
+      await refreshStats();
+      setInterval(refreshStats, 30000);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshStats(); });
 
       document.getElementById('signout-btn').addEventListener('click', async () => {
         await sbClient.auth.signOut();
