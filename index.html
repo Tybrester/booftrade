@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EazyTrade — Trade Smarter. Win Bigger.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #111111;
+      --border: #1f1f1f;
+      --accent: #00e676;
+      --accent-dim: #00c853;
+      --red: #ff1744;
+      --text: #f5f5f5;
+      --muted: #888;
+      --card-bg: #141414;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ── NAVBAR ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5%;
+      height: 64px;
+      background: rgba(10,10,10,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-size: 1.4rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .logo span { color: var(--accent); }
+
+    nav ul {
+      display: flex;
+      gap: 36px;
+      list-style: none;
+    }
+
+    nav ul a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    nav ul a:hover { color: var(--text); }
+
+    .nav-signin {
+      background: transparent;
+      color: var(--text) !important;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-weight: 600 !important;
+      font-size: 0.88rem !important;
+      border: 1px solid #333 !important;
+      transition: border-color 0.2s, background 0.2s !important;
+    }
+
+    .nav-signin:hover {
+      border-color: #555 !important;
+      background: rgba(255,255,255,0.05) !important;
+    }
+
+    .nav-cta {
+      background: var(--accent);
+      color: #000 !important;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-weight: 700 !important;
+      font-size: 0.88rem !important;
+      transition: background 0.2s, transform 0.15s !important;
+    }
+
+    .nav-cta:hover { background: var(--accent-dim) !important; transform: translateY(-1px); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 120px 5% 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -200px; left: 50%;
+      transform: translateX(-50%);
+      width: 900px; height: 600px;
+      background: radial-gradient(ellipse at center, rgba(0,230,118,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0,230,118,0.1);
+      border: 1px solid rgba(0,230,118,0.25);
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 100px;
+      margin-bottom: 28px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .hero-badge::before {
+      content: '';
+      width: 7px; height: 7px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    .hero h1 {
+      font-size: clamp(3rem, 8vw, 7rem);
+      font-weight: 900;
+      line-height: 1.0;
+      letter-spacing: -0.04em;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 .highlight {
+      color: var(--accent);
+      position: relative;
+    }
+
+    .hero p {
+      font-size: clamp(1.15rem, 2.2vw, 1.55rem);
+      font-weight: 700;
+      color: var(--muted);
+      max-width: 580px;
+      line-height: 1.65;
+      margin-bottom: 44px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      font-weight: 800;
+      font-size: 1rem;
+      padding: 14px 36px;
+      border-radius: 8px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 0 30px rgba(0,230,118,0.3);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dim);
+      transform: translateY(-2px);
+      box-shadow: 0 0 45px rgba(0,230,118,0.45);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 14px 36px;
+      border-radius: 8px;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .btn-secondary:hover {
+      border-color: #444;
+      background: rgba(255,255,255,0.04);
+    }
+
+    /* ── TICKER STRIP ── */
+    .ticker-wrap {
+      overflow: hidden;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 0;
+      white-space: nowrap;
+    }
+
+    .ticker-track {
+      display: inline-flex;
+      gap: 48px;
+      animation: ticker 30s linear infinite;
+    }
+
+    .ticker-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .ticker-item .sym { color: var(--text); }
+    .ticker-item .price { color: var(--muted); }
+    .ticker-item .chg.up { color: var(--accent); }
+    .ticker-item .chg.dn { color: var(--red); }
+
+    @keyframes ticker {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+
+    /* ── STATS ── */
+    .stats {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 1px;
+      background: var(--border);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stat-item {
+      flex: 1;
+      min-width: 180px;
+      padding: 48px 32px;
+      background: var(--bg);
+      text-align: center;
+    }
+
+    .stat-item .num {
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      font-weight: 900;
+      color: var(--text);
+      letter-spacing: -0.03em;
+    }
+
+    .stat-item .num span { color: var(--accent); }
+
+    .stat-item .label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 6px;
+      font-weight: 500;
+    }
+
+    /* ── FEATURES ── */
+    section { padding: 100px 5%; }
+
+    .section-tag {
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+
+    .section-sub {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 500px;
+      line-height: 1.6;
+      margin-bottom: 64px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .feature-card {
+      background: var(--card-bg);
+      padding: 40px 36px;
+      transition: background 0.2s;
+    }
+
+    .feature-card:hover { background: #181818; }
+
+    .feature-icon {
+      width: 48px; height: 48px;
+      background: rgba(0,230,118,0.08);
+      border: 1px solid rgba(0,230,118,0.2);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 20px;
+    }
+
+    .feature-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .feature-card p {
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── HOW IT WORKS ── */
+    .how-section { background: var(--surface); }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      max-width: 700px;
+    }
+
+    .step {
+      display: flex;
+      gap: 28px;
+      position: relative;
+    }
+
+    .step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 19px;
+      top: 56px;
+      width: 2px;
+      height: calc(100% - 24px);
+      background: var(--border);
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #000;
+      font-weight: 900;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step-body { padding: 8px 0 48px; }
+
+    .step-body h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .step-body p {
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.6;
+      max-width: 480px;
+    }
+
+    /* ── ASSETS ── */
+    .assets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .asset-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+
+    .asset-card:hover {
+      border-color: rgba(0,230,118,0.3);
+      transform: translateY(-2px);
+    }
+
+    .asset-info { display: flex; align-items: center; gap: 14px; }
+
+    .asset-logo {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: #1e1e1e;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .asset-name { font-weight: 700; font-size: 0.95rem; }
+    .asset-full { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+    .asset-price { text-align: right; }
+    .asset-price .p { font-weight: 700; font-size: 0.95rem; }
+    .asset-price .c { font-size: 0.82rem; font-weight: 600; }
+    .asset-price .c.up { color: var(--accent); }
+    .asset-price .c.dn { color: var(--red); }
+
+    /* ── TESTIMONIALS ── */
+    .testimonials-section { background: var(--surface); }
+
+    .testimonials-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .tcard {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 28px;
+    }
+
+    .tcard .stars { color: var(--accent); font-size: 0.9rem; margin-bottom: 14px; }
+
+    .tcard p {
+      font-size: 0.92rem;
+      color: #ccc;
+      line-height: 1.65;
+      margin-bottom: 20px;
+    }
+
+    .tcard-author {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #00acc1);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.85rem; color: #000;
+    }
+
+    .tcard-author .name { font-weight: 700; font-size: 0.88rem; }
+    .tcard-author .role { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── CTA SECTION ── */
+    .cta-section {
+      text-align: center;
+      padding: 120px 5%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-section::before {
+      content: '';
+      position: absolute;
+      bottom: -100px; left: 50%;
+      transform: translateX(-50%);
+      width: 700px; height: 400px;
+      background: radial-gradient(ellipse at center, rgba(0,230,118,0.1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta-section h2 {
+      font-size: clamp(2.2rem, 5vw, 4.5rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+      margin-bottom: 20px;
+    }
+
+    .cta-section p {
+      font-size: 1.1rem;
+      color: var(--muted);
+      margin-bottom: 44px;
+    }
+
+    .cta-form {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .cta-form input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.95rem;
+      padding: 14px 20px;
+      border-radius: 8px;
+      outline: none;
+      width: 280px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    .cta-form input:focus { border-color: var(--accent); }
+    .cta-form input::placeholder { color: var(--muted); }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 60px 5% 32px;
+    }
+
+    .footer-top {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 40px;
+      margin-bottom: 48px;
+    }
+
+    .footer-brand p {
+      font-size: 0.88rem;
+      color: var(--muted);
+      max-width: 260px;
+      line-height: 1.6;
+      margin-top: 12px;
+    }
+
+    .footer-links h4 {
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    .footer-links ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer-links ul a {
+      font-size: 0.88rem;
+      color: #aaa;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links ul a:hover { color: var(--text); }
+
+    .footer-bottom {
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      nav ul { display: none; }
+      .stats { flex-direction: column; }
+      .footer-top { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav>
+    <div class="logo">Eazy<span>Trade</span></div>
+    <ul>
+      <li><a href="#how">How It Works</a></li>
+      <li><a href="signup.html" class="nav-cta">Get Started</a></li>
+      <li><a href="signin.html" class="nav-signin">Sign In</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <h1>Trade Smarter. Let the<br /><span class="highlight">System Do the Work.</span></h1>
+    <p>Remove the FOMO, trade confidently.</p>
+    <div class="hero-actions">
+      <a href="#cta" class="btn-primary">Create system now</a>
+      <a href="#how" class="btn-secondary">See How It Works</a>
+    </div>
+  </section>
+
+  <!-- TICKER STRIP -->
+  <div class="ticker-wrap">
+    <div class="ticker-track">
+      <span class="ticker-item"><span class="sym">BTC</span><span class="price">$67,420</span><span class="chg up">+2.4%</span></span>
+      <span class="ticker-item"><span class="sym">ETH</span><span class="price">$3,184</span><span class="chg up">+1.8%</span></span>
+      <span class="ticker-item"><span class="sym">AAPL</span><span class="price">$189.92</span><span class="chg dn">-0.6%</span></span>
+      <span class="ticker-item"><span class="sym">NVDA</span><span class="price">$874.15</span><span class="chg up">+3.1%</span></span>
+      <span class="ticker-item"><span class="sym">SOL</span><span class="price">$172.30</span><span class="chg up">+5.2%</span></span>
+      <span class="ticker-item"><span class="sym">TSLA</span><span class="price">$177.48</span><span class="chg dn">-1.2%</span></span>
+      <span class="ticker-item"><span class="sym">BNB</span><span class="price">$596.40</span><span class="chg up">+0.9%</span></span>
+      <span class="ticker-item"><span class="sym">MSFT</span><span class="price">$415.22</span><span class="chg up">+0.4%</span></span>
+      <span class="ticker-item"><span class="sym">XRP</span><span class="price">$0.598</span><span class="chg dn">-0.8%</span></span>
+      <span class="ticker-item"><span class="sym">AMZN</span><span class="price">$183.74</span><span class="chg up">+1.1%</span></span>
+      <!-- duplicate for seamless loop -->
+      <span class="ticker-item"><span class="sym">BTC</span><span class="price">$67,420</span><span class="chg up">+2.4%</span></span>
+      <span class="ticker-item"><span class="sym">ETH</span><span class="price">$3,184</span><span class="chg up">+1.8%</span></span>
+      <span class="ticker-item"><span class="sym">AAPL</span><span class="price">$189.92</span><span class="chg dn">-0.6%</span></span>
+      <span class="ticker-item"><span class="sym">NVDA</span><span class="price">$874.15</span><span class="chg up">+3.1%</span></span>
+      <span class="ticker-item"><span class="sym">SOL</span><span class="price">$172.30</span><span class="chg up">+5.2%</span></span>
+      <span class="ticker-item"><span class="sym">TSLA</span><span class="price">$177.48</span><span class="chg dn">-1.2%</span></span>
+      <span class="ticker-item"><span class="sym">BNB</span><span class="price">$596.40</span><span class="chg up">+0.9%</span></span>
+      <span class="ticker-item"><span class="sym">MSFT</span><span class="price">$415.22</span><span class="chg up">+0.4%</span></span>
+      <span class="ticker-item"><span class="sym">XRP</span><span class="price">$0.598</span><span class="chg dn">-0.8%</span></span>
+      <span class="ticker-item"><span class="sym">AMZN</span><span class="price">$183.74</span><span class="chg up">+1.1%</span></span>
+    </div>
+  </div>
+
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="section-tag">Why EazyTrade</div>
+    <h2 class="section-title">Remove The Emotion<br />From Trading.</h2>
+    <p class="section-sub">Eliminate the FOMO, the panic selling, and the uncertainty that holds traders back.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Lightning Execution</h3>
+        <p>Orders are filled automatically upon receiving an alerted signal — no manual input required.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Default or Your Own Chart</h3>
+        <p>Use TradingView's default charts and indicators, or connect your own custom setup.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>Alerts</h3>
+        <p>Use EazyTrade's built-in JSON alert system or connect directly through TradingView's JSON alert system.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💼</div>
+        <h3>Asset Management</h3>
+        <p>Manage your trades and portfolio directly from the dashboard.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" class="how-section">
+    <div class="section-tag">Getting Started</div>
+    <h2 class="section-title">Up and Running<br />in 4 Steps.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Find a system you're comfortable with</h3>
+          <p>Use a default indicator from TradingView, or set up your own TradingView account to find a community indicator that works for you.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Decide what you would like to trade</h3>
+          <p>Stocks, options, or futures — choose the asset class that fits your strategy and risk tolerance.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Set up your JSON</h3>
+          <p>Configure the alert that tells your broker what to buy or sell, and whether to go long or short.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Take the emotion out of trading</h3>
+          <p>Let the system work for you. No second-guessing, no panic selling — just disciplined, automated execution.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+
+  <!-- CTA -->
+  <section id="cta" class="cta-section">
+    <h2>Ready to Make<br /><span style="color: var(--accent)">Winning Trades?</span></h2>
+
+    <div class="cta-form">
+      <input type="email" placeholder="Enter your email address" />
+      <a href="#" class="btn-primary">Create Free Account</a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="logo">Eazy<span>Trade</span></div>
+        <p>Remove the FOMO, trade confidently.</p>
+      </div>
+      <div class="footer-links">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#">Features</a></li>
+          <li><a href="#">Pricing</a></li>
+          <li><a href="#">Markets</a></li>
+          <li><a href="#">Mobile App</a></li>
+        </ul>
+      </div>
+      <div class="footer-links">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#">About</a></li>
+          <li><a href="#">Blog</a></li>
+          <li><a href="#">Careers</a></li>
+          <li><a href="#">Press</a></li>
+        </ul>
+      </div>
+      <div class="footer-links">
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="#">Privacy Policy</a></li>
+          <li><a href="#">Terms of Service</a></li>
+          <li><a href="#">Risk Disclosure</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 EazyTrade Inc. All rights reserved.</span>
+      <span>Trading involves risk. Past performance is not indicative of future results.</span>
+    </div>
+  </footer>
+
+</body>
+</html>
