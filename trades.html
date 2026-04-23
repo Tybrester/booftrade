@@ -220,8 +220,17 @@
       const { data: { session } } = await sbClient.auth.getSession();
       if (!session) return;
 
-      // Update paper balance
+      // Get current balance
       const { data: acct } = await sbClient.from('paper_accounts').select('*').eq('user_id', session.user.id).maybeSingle();
+      const currentBalance = acct?.balance ?? 100000;
+      
+      // Safety check: prevent fills that would cause negative balance
+      if (action === 'buy' && cost > currentBalance) {
+        alert(`Insufficient funds. Trade cost ($${cost.toLocaleString()}) exceeds balance ($${currentBalance.toLocaleString()}).\n\nAdjust quantity or add more funds.`);
+        return;
+      }
+
+      // Update paper balance
       if (acct) {
         const newBalance = action === 'buy' ? acct.balance - cost : acct.balance + cost;
         await sbClient.from('paper_accounts').update({ balance: newBalance, updated_at: new Date().toISOString() }).eq('user_id', session.user.id);
