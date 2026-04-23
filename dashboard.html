@@ -475,19 +475,29 @@
           <div class="sub" id="stat-balance-sub">No account connected</div>
         </div>
         <div class="stat-card">
+          <div class="label">Unrealized P&L</div>
+          <div class="value" id="stat-unrealized">$0.00</div>
+          <div class="sub" id="stat-unrealized-sub">No open positions</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Projected Balance</div>
+          <div class="value green" id="stat-projected">—</div>
+          <div class="sub">If all positions closed now</div>
+        </div>
+        <div class="stat-card">
           <div class="label">Active Trades</div>
           <div class="value" id="stat-systems">0</div>
           <div class="sub">No trades running</div>
         </div>
         <div class="stat-card">
           <div class="label">Win Rate</div>
-          <div class="value green">—</div>
-          <div class="sub">Start trading to track</div>
+          <div class="value green" id="stat-winrate">—</div>
+          <div class="sub" id="stat-winrate-sub">Start trading to track</div>
         </div>
         <div class="stat-card">
-          <div class="label">P&amp;L</div>
-          <div class="value">$0.00</div>
-          <div class="sub">All time</div>
+          <div class="label">Realized P&L</div>
+          <div class="value" id="stat-realized">$0.00</div>
+          <div class="sub" id="stat-realized-sub">From closed trades</div>
         </div>
       </div>
 
@@ -593,12 +603,27 @@
           } catch {}
         }));
 
-        // Effective balance = stored balance + unrealized P&L
-        const effectiveBalance = storedBalance + unrealizedPnl;
+        // Account Balance (stored/base balance)
         if (brokerSel.value === 'paper') {
-          balEl.textContent = '$' + effectiveBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          const pnlText = unrealizedPnl >= 0 ? `+${unrealizedPnl.toFixed(0)}` : unrealizedPnl.toFixed(0);
-          balSub.textContent = `Base: $${storedBalance.toLocaleString()} ${unrealizedPnl !== 0 ? '· Unrealized: $' + pnlText : ''}`;
+          balEl.textContent = '$' + storedBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          balSub.textContent = 'Paper Trading · Starting amount';
+        }
+
+        // Unrealized P&L
+        const unrealEl = document.getElementById('stat-unrealized');
+        const unrealSub = document.getElementById('stat-unrealized-sub');
+        if (unrealEl) {
+          unrealEl.textContent = (unrealizedPnl >= 0 ? '+$' : '-$') + Math.abs(unrealizedPnl).toFixed(2);
+          unrealEl.style.color = unrealizedPnl >= 0 ? 'var(--accent)' : 'var(--red)';
+        }
+        if (unrealSub) unrealSub.textContent = openTrades.length > 0 ? `${openTrades.length} open position${openTrades.length !== 1 ? 's' : ''}` : 'No open positions';
+
+        // Projected Balance (if all closed now)
+        const projectedBalance = storedBalance + unrealizedPnl;
+        const projEl = document.getElementById('stat-projected');
+        if (projEl) {
+          projEl.textContent = '$' + projectedBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          projEl.style.color = projectedBalance >= storedBalance ? 'var(--accent)' : 'var(--red)';
         }
 
         // Active trades count
@@ -608,23 +633,19 @@
         const subEl = sysEl?.closest('.stat-card')?.querySelector('.sub');
         if (subEl) subEl.textContent = activeCount === 0 ? 'No trades running' : `${activeCount} trade${activeCount !== 1 ? 's' : ''} running`;
 
-        // P&L: closed trades + live open position P&L
+        // Realized P&L (from closed trades only)
         const closedPnl = (allTrades || [])
           .filter(t => t.status === 'closed' && t.pnl != null)
           .reduce((sum, t) => sum + parseFloat(t.pnl), 0);
 
-        const totalPnl = closedPnl + unrealizedPnl;
-        const pnlCard = document.querySelector('.stat-card:last-child');
-        if (pnlCard) {
-          const pnlVal = pnlCard.querySelector('.value');
-          const pnlSub = pnlCard.querySelector('.sub');
-          if (pnlVal) {
-            pnlVal.textContent = (totalPnl >= 0 ? '+$' : '-$') + Math.abs(totalPnl).toFixed(2);
-            pnlVal.style.color = totalPnl >= 0 ? 'var(--accent)' : 'var(--red)';
-          }
-          const closedCount = (allTrades || []).filter(t => t.status === 'closed').length;
-          if (pnlSub) pnlSub.textContent = `${closedCount} closed · ${openTrades.length} open`;
+        const realizedEl = document.getElementById('stat-realized');
+        const realizedSub = document.getElementById('stat-realized-sub');
+        if (realizedEl) {
+          realizedEl.textContent = (closedPnl >= 0 ? '+$' : '-$') + Math.abs(closedPnl).toFixed(2);
+          realizedEl.style.color = closedPnl >= 0 ? 'var(--accent)' : 'var(--red)';
         }
+        const closedCount = (allTrades || []).filter(t => t.status === 'closed').length;
+        if (realizedSub) realizedSub.textContent = closedCount > 0 ? `${closedCount} closed trade${closedCount !== 1 ? 's' : ''}` : 'No closed trades';
 
         // Open positions table
         const posContainer = document.getElementById('positions-container');
@@ -669,16 +690,13 @@
         const closedTrades = (allTrades || []).filter(t => t.status === 'closed' && t.pnl != null);
         const wins = closedTrades.filter(t => parseFloat(t.pnl) > 0).length;
         const winRate = closedTrades.length > 0 ? Math.round((wins / closedTrades.length) * 100) : null;
-        const winRateCard = document.querySelectorAll('.stat-card')[2];
-        if (winRateCard) {
-          const wrVal = winRateCard.querySelector('.value');
-          const wrSub = winRateCard.querySelector('.sub');
-          if (wrVal) {
-            wrVal.textContent = winRate !== null ? `${winRate}%` : '—';
-            wrVal.style.color = winRate === null ? '' : winRate >= 50 ? 'var(--accent)' : 'var(--red)';
-          }
-          if (wrSub) wrSub.textContent = closedTrades.length > 0 ? `${wins} wins / ${closedTrades.length} trades` : 'Start trading to track';
+        const wrVal = document.getElementById('stat-winrate');
+        const wrSub = document.getElementById('stat-winrate-sub');
+        if (wrVal) {
+          wrVal.textContent = winRate !== null ? `${winRate}%` : '—';
+          wrVal.style.color = winRate === null ? '' : winRate >= 50 ? 'var(--accent)' : 'var(--red)';
         }
+        if (wrSub) wrSub.textContent = closedTrades.length > 0 ? `${wins} wins / ${closedTrades.length} trades` : 'Start trading to track';
       }
 
       await refreshStats();
