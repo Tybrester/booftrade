@@ -534,6 +534,45 @@
           if (pnlSub) pnlSub.textContent = `${closedCount} closed · ${openTrades.length} open`;
         }
 
+        // Open positions table
+        const posContainer = document.getElementById('positions-container');
+        if (posContainer) {
+          if (openTrades.length === 0) {
+            posContainer.innerHTML = `<div class="empty-positions"><div class="empty-positions-icon">📊</div><div>No open positions</div><div style="font-size:0.78rem;color:#444;margin-top:4px;">Trades will appear here once your system executes an order</div></div>`;
+          } else {
+            const priceMap = {};
+            await Promise.all(openTrades.map(async t => {
+              try {
+                const r = await fetch(`${SUPABASE_URL}/functions/v1/get-price?symbol=${encodeURIComponent(t.symbol)}`, { headers: { 'apikey': SUPABASE_ANON_KEY } });
+                const j = await r.json();
+                if (j.price) priceMap[t.symbol] = j.price;
+              } catch {}
+            }));
+            const rows = openTrades.map(t => {
+              const current = priceMap[t.symbol];
+              const entry = t.price || 0;
+              const direction = t.action === 'buy' ? 'Long' : 'Short';
+              const diff = current ? (direction === 'Long' ? (current - entry) * t.quantity : (entry - current) * t.quantity) : null;
+              const pnlHtml = diff !== null
+                ? `<span style="color:${diff >= 0 ? 'var(--accent)' : 'var(--red)'}">${diff >= 0 ? '+' : ''}$${diff.toFixed(2)}</span>`
+                : '—';
+              return `<tr>
+                <td style="color:var(--accent);font-weight:600;">${t.symbol || '—'}</td>
+                <td><span style="padding:2px 8px;border-radius:4px;font-size:0.78rem;font-weight:700;background:${direction==='Long'?'rgba(0,230,118,0.12)':'rgba(255,23,68,0.12)'};color:${direction==='Long'?'var(--accent)':'var(--red)'};">${direction}</span></td>
+                <td>${t.quantity || '—'}</td>
+                <td>${entry ? '$'+Number(entry).toFixed(2) : '—'}</td>
+                <td>${current ? '$'+current.toFixed(2) : '—'}</td>
+                <td>${pnlHtml}</td>
+                <td style="color:var(--muted);font-size:0.8rem;">${t.broker || 'paper'}</td>
+              </tr>`;
+            });
+            posContainer.innerHTML = `<table class="positions-table">
+              <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&L</th><th>Broker</th></tr></thead>
+              <tbody>${rows.join('')}</tbody>
+            </table>`;
+          }
+        }
+
         // Win rate
         const closedTrades = (allTrades || []).filter(t => t.status === 'closed' && t.pnl != null);
         const wins = closedTrades.filter(t => parseFloat(t.pnl) > 0).length;
