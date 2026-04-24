@@ -186,12 +186,13 @@
           </div>
           <div class="field" style="margin-top:16px;">
             <label>Trade Direction</label>
-            <select id="edit-trade-direction" style="width:100%;background:var(--card-bg);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:6px;font-family:inherit;font-size:0.9rem;cursor:pointer;">
-              <option value="both">Both Long & Short</option>
-              <option value="long">Long Only</option>
-              <option value="short">Short Only</option>
-            </select>
-            <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">Long Only: Sell alerts only close positions. Short Only: Buy alerts only close positions.</div>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button type="button" id="td-both" class="td-btn" onclick="setTradeDirection('both')" style="flex:1;padding:10px 16px;background:#1a1a1a;border:2px solid #333;color:var(--text);border-radius:6px;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;">Both</button>
+              <button type="button" id="td-long" class="td-btn" onclick="setTradeDirection('long')" style="flex:1;padding:10px 16px;background:#1a1a1a;border:2px solid #333;color:var(--accent);border-radius:6px;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;">Long Only</button>
+              <button type="button" id="td-short" class="td-btn" onclick="setTradeDirection('short')" style="flex:1;padding:10px 16px;background:#1a1a1a;border:2px solid #333;color:var(--red);border-radius:6px;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;">Short Only</button>
+            </div>
+            <input type="hidden" id="edit-trade-direction" value="both">
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:8px;">Long Only: Sell alerts only close positions. Short Only: Buy alerts only close positions.</div>
           </div>
         </div>
 
@@ -363,12 +364,25 @@
       }
     }
 
+    function setTradeDirection(direction) {
+      document.getElementById('edit-trade-direction').value = direction;
+      ['both', 'long', 'short'].forEach(d => {
+        const btn = document.getElementById('td-' + d);
+        if (btn) {
+          const isActive = d === direction;
+          btn.style.background = isActive ? 'var(--accent)' : '#1a1a1a';
+          btn.style.color = isActive ? '#000' : (d === 'long' ? 'var(--accent)' : d === 'short' ? 'var(--red)' : 'var(--text)');
+          btn.style.borderColor = isActive ? 'var(--accent)' : '#333';
+        }
+      });
+    }
+
     function populateForm(sys) {
       document.getElementById('page-title').textContent = sys.name;
       document.getElementById('edit-name').value = sys.name;
       document.getElementById('edit-enabled').checked = !!sys.enabled;
       document.getElementById('edit-auto-submit').checked = !!sys.auto_submit;
-      document.getElementById('edit-trade-direction').value = sys.trade_direction || 'both';
+      setTradeDirection(sys.trade_direction || 'both');
     }
 
     init();
