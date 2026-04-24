@@ -680,17 +680,11 @@
     <h2>Ready to Make<br /><span style="color: var(--accent)">Winning Trades?</span></h2>
 
     <div class="cta-form">
-      <input type="email" id="cta-email" placeholder="Enter your email address" />
-      <button class="btn-primary" onclick="goToCreate()">Create Free Account</button>
+      <button class="btn-primary" onclick="goToCreate()" style="width:auto;padding:14px 32px;font-size:1rem;">Create Free Account</button>
     </div>
     <script>
       function goToCreate() {
-        const email = document.getElementById('cta-email').value;
-        if (email) {
-          window.location.href = 'signin.html?email=' + encodeURIComponent(email) + '&redirect=create-system.html';
-        } else {
-          window.location.href = 'signin.html?redirect=create-system.html';
-        }
+        window.location.href = 'signin.html?redirect=create-system.html';
       }
     </script>
   </section>
