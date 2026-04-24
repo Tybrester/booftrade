@@ -248,6 +248,15 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
+          <div class="modal-field" style="margin-top:12px;">
+            <label>Trade Direction</label>
+            <select id="cs-trade-direction" style="width:100%;background:#111;border:1px solid #2a2a2a;color:var(--text);padding:9px 12px;border-radius:8px;font-family:inherit;font-size:0.85rem;outline:none;">
+              <option value="both">Both Long & Short</option>
+              <option value="long">Long Only</option>
+              <option value="short">Short Only</option>
+            </select>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">Long Only: Sell alerts only close positions. Short Only: Buy alerts only close positions.</div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -283,6 +292,7 @@
       document.getElementById('cs-name').value = '';
       document.getElementById('cs-enabled').checked = true;
       document.getElementById('cs-auto-submit').checked = false;
+      document.getElementById('cs-trade-direction').value = 'both';
       document.getElementById('create-system-modal').classList.add('open');
     }
 
@@ -307,6 +317,7 @@
         name,
         enabled: document.getElementById('cs-enabled').checked,
         auto_submit: document.getElementById('cs-auto-submit').checked,
+        trade_direction: document.getElementById('cs-trade-direction').value,
         created_at: new Date().toISOString(),
       };
       // Save to Supabase
@@ -316,6 +327,7 @@
         name: system.name,
         enabled: system.enabled,
         auto_submit: system.auto_submit,
+        trade_direction: system.trade_direction,
         broker,
       });
       if (error) {

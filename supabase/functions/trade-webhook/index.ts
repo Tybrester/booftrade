@@ -50,6 +50,94 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const action    = (body.action || body.side || body.signal || body.direction_action || 'buy').toLowerCase();
     const symbol    = (body.symbol || body.ticker || body.instrument || body.asset || '').toUpperCase();
+    
+    // Check trade direction restrictions
+    const tradeDirection = system.trade_direction || 'both';
+    if (tradeDirection !== 'both') {
+      // Check for open positions in the opposite direction
+      const { data: openTrades } = await supabase
+        .from('trades')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('system_id', systemId)
+        .eq('status', 'filled');
+      
+      if (tradeDirection === 'long' && action === 'sell') {
+        // For long-only: sell alerts should only close existing long positions
+        const hasLongPosition = openTrades?.some(t => t.action === 'buy');
+        if (!hasLongPosition) {
+          // No long position to close - create failed trade with explanation
+          const { data: trade, error: tradeErr } = await supabase.from('trades').insert({
+            user_id: userId,
+            system_id: systemId,
+            symbol,
+            action,
+            quantity: parseFloat(body.quantity || body.qty || body.size || body.contracts || body.amount || 1),
+            price: null,
+            order_type: body.order_type || body.orderType || body.type || 'market',
+            broker: system.broker || body.broker || body.account || 'paper',
+            status: 'failed',
+            failure_reason: 'System set to Long Only: Sell alerts only close existing long positions. No open long position found.',
+            payload: body,
+            created_at: new Date().toISOString(),
+          }).select().single();
+          
+          if (tradeErr) {
+            return new Response(JSON.stringify({ error: tradeErr.message }), {
+              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          
+          return new Response(JSON.stringify({ 
+            success: true, 
+            status: 'failed',
+            reason: 'No open long position to close (Long Only mode)',
+            trade_id: trade.id 
+          }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+      
+      if (tradeDirection === 'short' && action === 'buy') {
+        // For short-only: buy alerts should only close existing short positions  
+        const hasShortPosition = openTrades?.some(t => t.action === 'sell');
+        if (!hasShortPosition) {
+          // No short position to close - create failed trade with explanation
+          const { data: trade, error: tradeErr } = await supabase.from('trades').insert({
+            user_id: userId,
+            system_id: systemId,
+            symbol,
+            action,
+            quantity: parseFloat(body.quantity || body.qty || body.size || body.contracts || body.amount || 1),
+            price: null,
+            order_type: body.order_type || body.orderType || body.type || 'market',
+            broker: system.broker || body.broker || body.account || 'paper',
+            status: 'failed',
+            failure_reason: 'System set to Short Only: Buy alerts only close existing short positions. No open short position found.',
+            payload: body,
+            created_at: new Date().toISOString(),
+          }).select().single();
+          
+          if (tradeErr) {
+            return new Response(JSON.stringify({ error: tradeErr.message }), {
+              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          
+          return new Response(JSON.stringify({ 
+            success: true, 
+            status: 'failed',
+            reason: 'No open short position to close (Short Only mode)',
+            trade_id: trade.id 
+          }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
+    
+    // Use already parsed values
     const quantity  = parseFloat(body.quantity || body.qty || body.size || body.contracts || body.amount || 1);
     const orderType = body.order_type || body.orderType || body.type || 'market';
     const broker    = system.broker || body.broker || body.account || 'paper';

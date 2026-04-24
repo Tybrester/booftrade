@@ -184,6 +184,15 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
+          <div class="field" style="margin-top:16px;">
+            <label>Trade Direction</label>
+            <select id="edit-trade-direction" style="width:100%;background:var(--card-bg);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:6px;font-family:inherit;font-size:0.9rem;cursor:pointer;">
+              <option value="both">Both Long & Short</option>
+              <option value="long">Long Only</option>
+              <option value="short">Short Only</option>
+            </select>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">Long Only: Sell alerts only close positions. Short Only: Buy alerts only close positions.</div>
+          </div>
         </div>
 
         <!-- WEBHOOK -->
@@ -275,6 +284,7 @@
         name,
         enabled: document.getElementById('edit-enabled').checked,
         auto_submit: document.getElementById('edit-auto-submit').checked,
+        trade_direction: document.getElementById('edit-trade-direction').value,
       };
       const { error } = await sbClient.from('systems').update(updates).eq('id', systemId);
       if (error) {
@@ -358,6 +368,7 @@
       document.getElementById('edit-name').value = sys.name;
       document.getElementById('edit-enabled').checked = !!sys.enabled;
       document.getElementById('edit-auto-submit').checked = !!sys.auto_submit;
+      document.getElementById('edit-trade-direction').value = sys.trade_direction || 'both';
     }
 
     init();
