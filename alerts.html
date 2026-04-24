@@ -175,10 +175,15 @@
           <div class="section-title">JSON Message Builder</div>
           <p style="color:var(--muted);font-size:0.85rem;margin-bottom:20px;">Build a webhook JSON payload to paste into TradingView alerts.</p>
           <div style="display:flex;gap:8px;margin-bottom:24px;">
-            <button onclick="switchAssetType('stock')" id="jat-stock" style="padding:7px 18px;border-radius:20px;border:1px solid var(--accent);background:var(--accent);color:#000;font-weight:700;font-size:0.8rem;cursor:pointer;font-family:inherit;">Stock</button>
-            <button onclick="switchAssetType('options')" id="jat-options" style="padding:7px 18px;border-radius:20px;border:1px solid #2a2a2a;background:transparent;color:var(--muted);font-weight:700;font-size:0.8rem;cursor:pointer;font-family:inherit;">Options</button>
-            <button onclick="switchAssetType('crypto')" id="jat-crypto" style="padding:7px 18px;border-radius:20px;border:1px solid #2a2a2a;background:transparent;color:var(--muted);font-weight:700;font-size:0.8rem;cursor:pointer;font-family:inherit;">Crypto</button>
+            <button onclick="switchAssetType('equities')" id="jat-equities" style="padding:7px 18px;border-radius:20px;border:1px solid var(--accent);background:var(--accent);color:#000;font-weight:700;font-size:0.8rem;cursor:pointer;font-family:inherit;">Equities (Stock/Crypto/Options)</button>
             <button onclick="switchAssetType('futures')" id="jat-futures" style="padding:7px 18px;border-radius:20px;border:1px solid #2a2a2a;background:transparent;color:var(--muted);font-weight:700;font-size:0.8rem;cursor:pointer;font-family:inherit;">Futures</button>
+          </div>
+          <div id="options-toggle-row" style="margin-bottom:16px;max-width:760px;">
+            <label class="toggle-switch" style="display:flex;align-items:center;gap:12px;cursor:pointer;">
+              <input type="checkbox" id="options-toggle" onchange="toggleOptionsFields()" style="display:none;"/>
+              <span class="toggle-slider" style="position:relative;width:44px;height:24px;background:#2a2a2a;border-radius:12px;transition:background 0.2s;"></span>
+              <span style="font-size:0.85rem;color:var(--muted);">Enable Options Fields</span>
+            </label>
           </div>
           <div style="margin-bottom:20px;max-width:760px;">
             <label style="font-size:0.78rem;color:var(--muted);display:block;margin-bottom:6px;">System (Webhook)</label>
@@ -441,15 +446,24 @@
       document.getElementById('create-sys-btn').style.display = tab === 'systems' ? '' : 'none';
     }
 
-    let currentAssetType = 'stock';
+    let currentAssetType = 'equities';
     function switchAssetType(type) {
       currentAssetType = type;
-      ['stock','options','crypto','futures'].forEach(t => {
+      ['equities','futures'].forEach(t => {
         const btn = document.getElementById('jat-' + t);
         if (btn) { btn.style.background = t === type ? 'var(--accent)' : 'transparent'; btn.style.color = t === type ? '#000' : 'var(--muted)'; btn.style.borderColor = t === type ? 'var(--accent)' : '#2a2a2a'; }
       });
-      document.getElementById('json-options-fields').style.display = type === 'options' ? 'grid' : 'none';
+      document.getElementById('options-toggle-row').style.display = type === 'equities' ? 'block' : 'none';
+      document.getElementById('json-options-fields').style.display = (type === 'equities' && document.getElementById('options-toggle')?.checked) ? 'grid' : 'none';
       document.getElementById('json-futures-fields').style.display = type === 'futures' ? 'grid' : 'none';
+      buildJSONPreview();
+    }
+
+    function toggleOptionsFields() {
+      const isChecked = document.getElementById('options-toggle')?.checked;
+      document.getElementById('json-options-fields').style.display = isChecked ? 'grid' : 'none';
+      const slider = document.querySelector('#options-toggle-row .toggle-slider');
+      if (slider) { slider.style.background = isChecked ? 'var(--accent)' : '#2a2a2a'; }
       buildJSONPreview();
     }
 
@@ -471,7 +485,7 @@
       else { webhookEl.style.display = 'none'; }
 
       const payload = { action, symbol, quantity: qty, order_type: orderType, broker, price, time: '{{time}}' };
-      if (currentAssetType === 'options') {
+      if (currentAssetType === 'equities' && document.getElementById('options-toggle')?.checked) {
         payload.contract = document.getElementById('json-contract')?.value || 'call';
         const strike = document.getElementById('json-strike')?.value;
         const expiry = document.getElementById('json-expiry')?.value;
@@ -479,8 +493,6 @@
         if (expiry) payload.expiry = expiry;
       } else if (currentAssetType === 'futures') {
         payload.direction = document.getElementById('json-direction')?.value || 'Long';
-      } else if (currentAssetType === 'crypto') {
-        payload.exchange = '{{exchange}}';
       }
       document.getElementById('json-preview').textContent = JSON.stringify(payload, null, 2);
 
