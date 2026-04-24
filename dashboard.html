@@ -730,8 +730,8 @@
           }
         }
 
-        // Win rate
-        const closedTrades = (allTrades || []).filter(t => t.status === 'closed' && t.pnl != null);
+        // Win rate (exclude $0 P&L trades - breakeven doesn't count)
+        const closedTrades = (allTrades || []).filter(t => t.status === 'closed' && t.pnl != null && parseFloat(t.pnl) !== 0);
         const wins = closedTrades.filter(t => parseFloat(t.pnl) > 0).length;
         const winRate = closedTrades.length > 0 ? Math.round((wins / closedTrades.length) * 100) : null;
         const wrVal = document.getElementById('stat-winrate');

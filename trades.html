@@ -334,19 +334,56 @@
       if (isNaN(numValue)) {
         // Clear TP/SL
         const updateData = field === 'take_profit' 
-          ? { take_profit: null, take_profit_type: null, take_profit_input: null }
-          : { stop_loss: null, stop_loss_type: null, stop_loss_input: null };
+          ? { take_profit: null, take_profit_type: null, take_profit_input: null, take_profit_pnl: null }
+          : { stop_loss: null, stop_loss_type: null, stop_loss_input: null, stop_loss_pnl: null };
         await sbClient.from('trades').update(updateData).eq('id', id);
         if (statusEl) statusEl.textContent = 'Cleared';
         setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
         return;
       }
 
+      // Get trade data for symbol/quantity
+      const { data: trade } = await sbClient.from('trades').select('*').eq('id', id).single();
+      if (!trade) {
+        if (statusEl) {
+          statusEl.textContent = 'Trade not found!';
+          statusEl.style.color = 'var(--red)';
+        }
+        return;
+      }
+
       // Calculate actual price based on type and direction
       let actualPrice = numValue;
-      if (type === 'percent') {
+      let targetPnl = null; // Store P&L target for P&L-based TP/SL
+      
+      if (type === 'pnl') {
+        // P&L-based: calculate price from desired P&L
+        // Example: entry $100, want to close at P&L -$100 (from -$200), quantity 1
+        // Target P&L = -100 means we want to lose $100, so price needs to move
+        targetPnl = numValue;
+        const isLong = direction === 'Long';
+        
+        // For futures, we need the multiplier
+        const normalizedSymbol = normalizeSymbol(trade.symbol);
+        const isOption = /\d{6}[CP]\d+$/.test(trade.symbol);
+        const contractMultipliers = {
+          'ES=F': 50, 'MES=F': 5, 'NQ=F': 20, 'MNQ=F': 2,
+          'CL=F': 1000, 'MCL=F': 100, 'GC=F': 100, 'MGC=F': 10,
+          'SI=F': 5000, 'SIL=F': 1000, 'NG=F': 10000,
+          'ZB=F': 1000, 'ZN=F': 1000, 'YM=F': 5, 'MYM=F': 0.5,
+          'RTY=F': 50, 'M2K=F': 5,
+        };
+        const multiplier = isOption ? 100 : (contractMultipliers[normalizedSymbol] || 1);
+        
+        // Calculate price change needed: P&L = (currentPrice - entryPrice) * multiplier * qty
+        // So: currentPrice = entryPrice + (P&L / (multiplier * qty))
+        const qty = trade.quantity || 1;
+        const priceChange = targetPnl / (multiplier * qty);
+        actualPrice = entryPrice + priceChange;
+        
+      } else if (type === 'percent') {
         // Convert percentage to price
-        const pct = Math.abs(numValue) / 100; // Use absolute value
+        const pct = numValue / 100;
         const isLong = direction === 'Long';
         if (field === 'take_profit') {
           // TP: Long=above entry, Short=below entry
@@ -357,8 +394,8 @@
         }
       }
       
-      // Ensure price is positive and makes sense
-      if (actualPrice <= 0) {
+      // Ensure price is positive for price-based calculations
+      if (type !== 'pnl' && actualPrice <= 0) {
         if (statusEl) {
           statusEl.textContent = 'Invalid price!';
           statusEl.style.color = 'var(--red)';
@@ -367,8 +404,8 @@
       }
 
       const updateData = field === 'take_profit' 
-        ? { take_profit: actualPrice, take_profit_type: type, take_profit_input: Math.abs(numValue) }
-        : { stop_loss: actualPrice, stop_loss_type: type, stop_loss_input: Math.abs(numValue) };
+        ? { take_profit: actualPrice, take_profit_type: type, take_profit_input: numValue, take_profit_pnl: targetPnl }
+        : { stop_loss: actualPrice, stop_loss_type: type, stop_loss_input: numValue, stop_loss_pnl: targetPnl };
       
       const { error } = await sbClient.from('trades').update(updateData).eq('id', id);
       if (error) {
@@ -533,9 +570,10 @@
             <td>
               <div style="display:flex;gap:6px;align-items:center;">
                 <input type="number" step="0.01" id="tp-${t.id}" placeholder="TP" value="${t.take_profit_input || t.take_profit || ''}" onkeydown="if(event.key==='Enter'){updateTPSL('${t.id}','take_profit',this.value,document.getElementById('tp-type-${t.id}').value,${entryPrice},'${direction}');this.style.borderColor='var(--accent)';setTimeout(()=>this.style.borderColor='#333',1000);}" style="width:100px;background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px 10px;border-radius:6px;font-size:0.85rem;font-weight:600;outline:none;transition:border-color 0.2s;">
-                <select id="tp-type-${t.id}" onchange="updateTPSL('${t.id}', 'take_profit', document.getElementById('tp-${t.id}').value, this.value, ${entryPrice}, '${direction}')" style="background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px;border-radius:6px;font-size:0.8rem;width:45px;cursor:pointer;">
-                  <option value="price" ${t.take_profit_type !== 'percent' ? 'selected' : ''}>$</option>
+                <select id="tp-type-${t.id}" onchange="updateTPSL('${t.id}', 'take_profit', document.getElementById('tp-${t.id}').value, this.value, ${entryPrice}, '${direction}')" style="background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px;border-radius:6px;font-size:0.8rem;width:50px;cursor:pointer;">
+                  <option value="price" ${t.take_profit_type !== 'percent' && t.take_profit_type !== 'pnl' ? 'selected' : ''}>$</option>
                   <option value="percent" ${t.take_profit_type === 'percent' ? 'selected' : ''}>%</option>
+                  <option value="pnl" ${t.take_profit_type === 'pnl' ? 'selected' : ''}>P&L</option>
                 </select>
               </div>
               <div id="tp-status-${t.id}" style="font-size:0.65rem;color:var(--muted);margin-top:2px;height:14px;"></div>
@@ -543,9 +581,10 @@
             <td>
               <div style="display:flex;gap:6px;align-items:center;">
                 <input type="number" step="0.01" id="sl-${t.id}" placeholder="SL" value="${t.stop_loss_input || t.stop_loss || ''}" onkeydown="if(event.key==='Enter'){updateTPSL('${t.id}','stop_loss',this.value,document.getElementById('sl-type-${t.id}').value,${entryPrice},'${direction}');this.style.borderColor='var(--red)';setTimeout(()=>this.style.borderColor='#333',1000);}" style="width:100px;background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px 10px;border-radius:6px;font-size:0.85rem;font-weight:600;outline:none;transition:border-color 0.2s;">
-                <select id="sl-type-${t.id}" onchange="updateTPSL('${t.id}', 'stop_loss', document.getElementById('sl-${t.id}').value, this.value, ${entryPrice}, '${direction}')" style="background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px;border-radius:6px;font-size:0.8rem;width:45px;cursor:pointer;">
-                  <option value="price" ${t.stop_loss_type !== 'percent' ? 'selected' : ''}>$</option>
+                <select id="sl-type-${t.id}" onchange="updateTPSL('${t.id}', 'stop_loss', document.getElementById('sl-${t.id}').value, this.value, ${entryPrice}, '${direction}')" style="background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px;border-radius:6px;font-size:0.8rem;width:50px;cursor:pointer;">
+                  <option value="price" ${t.stop_loss_type !== 'percent' && t.stop_loss_type !== 'pnl' ? 'selected' : ''}>$</option>
                   <option value="percent" ${t.stop_loss_type === 'percent' ? 'selected' : ''}>%</option>
+                  <option value="pnl" ${t.stop_loss_type === 'pnl' ? 'selected' : ''}>P&L</option>
                 </select>
               </div>
               <div id="sl-status-${t.id}" style="font-size:0.65rem;color:var(--muted);margin-top:2px;height:14px;"></div>
@@ -799,38 +838,78 @@
         // Convert to numbers (Supabase returns NUMERIC as strings)
         const tpPrice = parseFloat(trade.take_profit);
         const slPrice = parseFloat(trade.stop_loss);
+        const tpPnl = parseFloat(trade.take_profit_pnl);
+        const slPnl = parseFloat(trade.stop_loss_pnl);
+        const tpType = trade.take_profit_type;
+        const slType = trade.stop_loss_type;
         
-        console.log(`[TP/SL Check] ${trade.symbol} | ${direction} | Current: $${currentPrice} | TP: $${tpPrice} | SL: $${slPrice}`);
+        // Calculate current P&L for comparison
+        const normalizedSymbol = normalizeSymbol(trade.symbol);
+        const isOption = /\d{6}[CP]\d+$/.test(trade.symbol);
+        const contractMultipliers = {
+          'ES=F': 50, 'MES=F': 5, 'NQ=F': 20, 'MNQ=F': 2,
+          'CL=F': 1000, 'MCL=F': 100, 'GC=F': 100, 'MGC=F': 10,
+          'SI=F': 5000, 'SIL=F': 1000, 'NG=F': 10000,
+          'ZB=F': 1000, 'ZN=F': 1000, 'YM=F': 5, 'MYM=F': 0.5,
+          'RTY=F': 50, 'M2K=F': 5,
+        };
+        const multiplier = isOption ? 100 : (contractMultipliers[normalizedSymbol] || 1);
+        const pointDiff = direction === 'Long' ? (currentPrice - entryPrice) : (entryPrice - currentPrice);
+        const currentPnl = pointDiff * multiplier * (trade.quantity || 1);
         
-        // Skip if TP/SL are invalid (negative or zero)
-        if ((!isNaN(tpPrice) && tpPrice <= 0) || (!isNaN(slPrice) && slPrice <= 0)) {
-          console.log(`[TP/SL] Skipping ${trade.symbol} - invalid TP/SL values (negative or zero)`);
-          continue;
-        }
+        console.log(`[TP/SL Check] ${trade.symbol} | ${direction} | Current: $${currentPrice} | Current P&L: $${currentPnl.toFixed(2)} | TP Price: $${tpPrice} | SL Price: $${slPrice} | TP P&L: $${tpPnl} | SL P&L: $${slPnl}`);
         
-        // Check Take Profit
-        if (!isNaN(tpPrice) && tpPrice > 0) {
-          if (direction === 'Long' && currentPrice >= tpPrice) {
-            triggered = true;
-            reason = 'Take Profit hit';
-            console.log(`[TP/SL] Long TP triggered: ${currentPrice} >= ${tpPrice}`);
-          } else if (direction === 'Short' && currentPrice <= tpPrice) {
-            triggered = true;
-            reason = 'Take Profit hit';
-            console.log(`[TP/SL] Short TP triggered: ${currentPrice} <= ${tpPrice}`);
+        // Check Take Profit - price-based or P&L-based
+        if (!isNaN(tpPrice)) {
+          if (tpType === 'pnl' && !isNaN(tpPnl)) {
+            // P&L-based TP
+            if (direction === 'Long' && currentPnl >= tpPnl) {
+              triggered = true;
+              reason = 'Take Profit hit (P&L)';
+              console.log(`[TP/SL] Long TP triggered by P&L: ${currentPnl.toFixed(2)} >= ${tpPnl}`);
+            } else if (direction === 'Short' && currentPnl >= tpPnl) {
+              triggered = true;
+              reason = 'Take Profit hit (P&L)';
+              console.log(`[TP/SL] Short TP triggered by P&L: ${currentPnl.toFixed(2)} >= ${tpPnl}`);
+            }
+          } else {
+            // Price-based TP
+            if (direction === 'Long' && currentPrice >= tpPrice) {
+              triggered = true;
+              reason = 'Take Profit hit';
+              console.log(`[TP/SL] Long TP triggered: ${currentPrice} >= ${tpPrice}`);
+            } else if (direction === 'Short' && currentPrice <= tpPrice) {
+              triggered = true;
+              reason = 'Take Profit hit';
+              console.log(`[TP/SL] Short TP triggered: ${currentPrice} <= ${tpPrice}`);
+            }
           }
         }
         
-        // Check Stop Loss
-        if (!triggered && !isNaN(slPrice) && slPrice > 0) {
-          if (direction === 'Long' && currentPrice <= slPrice) {
-            triggered = true;
-            reason = 'Stop Loss hit';
-            console.log(`[TP/SL] Long SL triggered: ${currentPrice} <= ${slPrice}`);
-          } else if (direction === 'Short' && currentPrice >= slPrice) {
-            triggered = true;
-            reason = 'Stop Loss hit';
-            console.log(`[TP/SL] Short SL triggered: ${currentPrice} >= ${slPrice}`);
+        // Check Stop Loss - price-based or P&L-based
+        if (!triggered && !isNaN(slPrice)) {
+          if (slType === 'pnl' && !isNaN(slPnl)) {
+            // P&L-based SL (for SL, target is usually negative, so check if P&L <= target)
+            if (direction === 'Long' && currentPnl <= slPnl) {
+              triggered = true;
+              reason = 'Stop Loss hit (P&L)';
+              console.log(`[TP/SL] Long SL triggered by P&L: ${currentPnl.toFixed(2)} <= ${slPnl}`);
+            } else if (direction === 'Short' && currentPnl <= slPnl) {
+              triggered = true;
+              reason = 'Stop Loss hit (P&L)';
+              console.log(`[TP/SL] Short SL triggered by P&L: ${currentPnl.toFixed(2)} <= ${slPnl}`);
+            }
+          } else {
+            // Price-based SL
+            if (direction === 'Long' && currentPrice <= slPrice) {
+              triggered = true;
+              reason = 'Stop Loss hit';
+              console.log(`[TP/SL] Long SL triggered: ${currentPrice} <= ${slPrice}`);
+            } else if (direction === 'Short' && currentPrice >= slPrice) {
+              triggered = true;
+              reason = 'Stop Loss hit';
+              console.log(`[TP/SL] Short SL triggered: ${currentPrice} >= ${slPrice}`);
+            }
           }
         }
         
