@@ -49,15 +49,37 @@ Deno.serve(async (req) => {
     }
 
     const rememberToken = json.data?.['remember-token'] || null;
+    const sessionToken = json.data?.['session-token'] || null;
 
-    // Save credentials to Supabase
+    // Get account number
+    let accountNumber = null;
+    if (sessionToken) {
+      try {
+        const acctRes = await fetch('https://api.tastytrade.com/customers/me/accounts', {
+          headers: { Authorization: sessionToken }
+        });
+        const acctJson = await acctRes.json();
+        accountNumber = acctJson?.data?.items?.[0]?.account?.['account-number'] || null;
+      } catch (_) {
+        // Ignore account fetch errors
+      }
+    }
+
+    // Save credentials to Supabase (including session token to stay logged in)
     await supabase.from('broker_credentials').upsert({
       user_id,
       broker: 'tastytrade',
-      credentials: { username, password, remember_token: rememberToken }
+      credentials: { 
+        username, 
+        password, 
+        remember_token: rememberToken,
+        session_token: sessionToken,
+        account_number: accountNumber,
+        session_created_at: new Date().toISOString()
+      }
     }, { onConflict: 'user_id,broker' });
 
-    return new Response(JSON.stringify({ success: true, username }), {
+    return new Response(JSON.stringify({ success: true, username, session_token: sessionToken }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 

@@ -372,6 +372,7 @@
           const json = await res.json();
           if (json.error) throw new Error(json.error);
 
+          localStorage.setItem('webhook_tastytrade', 'true');
           applyTastyUI(true, username);
           closeTastyModal();
         } catch(e) {
@@ -409,6 +410,7 @@
 
         if (json.error) throw new Error(json.error);
 
+        localStorage.setItem('webhook_tastytrade', 'true');
         applyTastyUI(true, username);
         closeTastyModal();
       } catch(e) {
@@ -421,6 +423,7 @@
 
     async function disconnectTastytrade() {
       await sbClient.from('broker_credentials').delete().eq('user_id', currentUser.id).eq('broker', 'tastytrade');
+      localStorage.removeItem('webhook_tastytrade');
       applyTastyUI(false);
     }
 
@@ -454,8 +457,16 @@
       document.getElementById('app').style.display = 'flex';
 
       // Check if tastytrade already connected
-      const { data: creds } = await sbClient.from('broker_credentials').select('credentials').eq('user_id', currentUser.id).eq('broker', 'tastytrade').maybeSingle();
-      if (creds) applyTastyUI(true, creds.credentials.username);
+      console.log('[Brokers] Checking for tastytrade credentials...');
+      const { data: creds, error: credsError } = await sbClient.from('broker_credentials').select('credentials').eq('user_id', currentUser.id).eq('broker', 'tastytrade').maybeSingle();
+      console.log('[Brokers] Creds result:', creds, 'Error:', credsError);
+      if (creds) {
+        console.log('[Brokers] Found credentials, setting localStorage and UI');
+        localStorage.setItem('webhook_tastytrade', 'true');
+        applyTastyUI(true, creds.credentials.username);
+      } else {
+        console.log('[Brokers] No credentials found');
+      }
 
       // Check if paper trading already enabled
       const paperEnabled = localStorage.getItem('paper_trading_enabled') === 'true';

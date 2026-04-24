@@ -61,6 +61,7 @@
     /* TP/SL dropdown styling */
     select option { background: #1a1a1a; color: var(--text); }
     select option:hover { background: #2a2a2a; }
+    select { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: none; }
 
     @media (max-width: 900px) { .sidebar { display: none; } }
   </style>
@@ -322,11 +323,11 @@
         await sbClient.from('paper_accounts').insert({ user_id: session.user.id, balance: action === 'buy' ? 100000 - cost : 100000 + cost });
       }
 
-      await sbClient.from('trades').update({ status: 'filled', price }).eq('id', id);
+      await sbClient.from('trades').update({ status: 'filled', price, filled_at: new Date().toISOString() }).eq('id', id);
       loadTrades();
     }
 
-    async function updateTPSL(id, field, value, type, entryPrice, direction = 'Long') {
+    async function updateTPSL(id, field, value, type, entryPrice, direction = 'Long', quantity = 1) {
       const statusEl = document.getElementById(`${field === 'take_profit' ? 'tp' : 'sl'}-status-${id}`);
       if (statusEl) statusEl.textContent = 'Saving...';
       
@@ -342,7 +343,7 @@
         return;
       }
 
-      // Get trade data for symbol/quantity
+      // Get trade data for symbol
       const { data: trade } = await sbClient.from('trades').select('*').eq('id', id).single();
       if (!trade) {
         if (statusEl) {
@@ -356,28 +357,26 @@
       let actualPrice = numValue;
       let targetPnl = null; // Store P&L target for P&L-based TP/SL
       
+      // For futures, we need the multiplier
+      const normalizedSymbol = normalizeSymbol(trade.symbol);
+      const isOption = /\d{6}[CP]\d+$/.test(trade.symbol);
+      const contractMultipliers = {
+        'ES=F': 50, 'MES=F': 5, 'NQ=F': 20, 'MNQ=F': 2,
+        'CL=F': 1000, 'MCL=F': 100, 'GC=F': 100, 'MGC=F': 10,
+        'SI=F': 5000, 'SIL=F': 1000, 'NG=F': 10000,
+        'ZB=F': 1000, 'ZN=F': 1000, 'YM=F': 5, 'MYM=F': 0.5,
+        'RTY=F': 50, 'M2K=F': 5,
+      };
+      const multiplier = isOption ? 100 : (contractMultipliers[normalizedSymbol] || 1);
+      const qty = quantity || trade.quantity || 1;
+      const entryCost = entryPrice * multiplier * qty; // Total entry cost
+      
       if (type === 'pnl') {
-        // P&L-based: calculate price from desired P&L
-        // Example: entry $100, want to close at P&L -$100 (from -$200), quantity 1
-        // Target P&L = -100 means we want to lose $100, so price needs to move
+        // Dollar P&L-based: calculate price from desired P&L
         targetPnl = numValue;
-        const isLong = direction === 'Long';
-        
-        // For futures, we need the multiplier
-        const normalizedSymbol = normalizeSymbol(trade.symbol);
-        const isOption = /\d{6}[CP]\d+$/.test(trade.symbol);
-        const contractMultipliers = {
-          'ES=F': 50, 'MES=F': 5, 'NQ=F': 20, 'MNQ=F': 2,
-          'CL=F': 1000, 'MCL=F': 100, 'GC=F': 100, 'MGC=F': 10,
-          'SI=F': 5000, 'SIL=F': 1000, 'NG=F': 10000,
-          'ZB=F': 1000, 'ZN=F': 1000, 'YM=F': 5, 'MYM=F': 0.5,
-          'RTY=F': 50, 'M2K=F': 5,
-        };
-        const multiplier = isOption ? 100 : (contractMultipliers[normalizedSymbol] || 1);
         
         // Calculate price change needed: P&L = (currentPrice - entryPrice) * multiplier * qty
         // So: currentPrice = entryPrice + (P&L / (multiplier * qty))
-        const qty = trade.quantity || 1;
         const priceChange = targetPnl / (multiplier * qty);
         actualPrice = entryPrice + priceChange;
         
@@ -420,11 +419,146 @@
           statusEl.style.color = 'var(--accent)';
           setTimeout(() => {
             if (statusEl) {
-              statusEl.textContent = `At: $${actualPrice.toFixed(2)}`;
+              if (type === 'pnl') {
+                statusEl.textContent = `P&L: $${targetPnl.toFixed(2)} (at $${actualPrice.toFixed(2)})`;
+              } else {
+                statusEl.textContent = `At: $${actualPrice.toFixed(2)}`;
+              }
               statusEl.style.color = 'var(--muted)';
             }
           }, 2000);
         }
+      }
+    }
+
+    // Helper functions to lock/unlock TP/SL inputs
+    function lockTPInput(id) {
+      const input = document.getElementById(`tp-${id}`);
+      const select = document.getElementById(`tp-type-${id}`);
+      const container = input?.parentElement;
+      if (input) {
+        input.readOnly = true;
+        input.style.cursor = 'not-allowed';
+        input.style.opacity = '0.7';
+      }
+      if (select) {
+        select.disabled = true;
+        select.style.cursor = 'not-allowed';
+        select.style.opacity = '0.5';
+      }
+      // Add X button if not exists
+      if (container && !container.querySelector('.clear-tp-btn')) {
+        const xBtn = document.createElement('button');
+        xBtn.className = 'clear-tp-btn';
+        xBtn.innerHTML = '×';
+        xBtn.onclick = () => clearTP(id);
+        xBtn.style.cssText = 'background:none;border:none;color:var(--red);font-size:1.2rem;cursor:pointer;padding:4px;line-height:1;';
+        xBtn.title = 'Clear TP';
+        container.appendChild(xBtn);
+      }
+    }
+
+    function lockSLInput(id) {
+      const input = document.getElementById(`sl-${id}`);
+      const select = document.getElementById(`sl-type-${id}`);
+      const container = input?.parentElement;
+      if (input) {
+        input.readOnly = true;
+        input.style.cursor = 'not-allowed';
+        input.style.opacity = '0.7';
+      }
+      if (select) {
+        select.disabled = true;
+        select.style.cursor = 'not-allowed';
+        select.style.opacity = '0.5';
+      }
+      // Add X button if not exists
+      if (container && !container.querySelector('.clear-sl-btn')) {
+        const xBtn = document.createElement('button');
+        xBtn.className = 'clear-sl-btn';
+        xBtn.innerHTML = '×';
+        xBtn.onclick = () => clearSL(id);
+        xBtn.style.cssText = 'background:none;border:none;color:var(--red);font-size:1.2rem;cursor:pointer;padding:4px;line-height:1;';
+        xBtn.title = 'Clear SL';
+        container.appendChild(xBtn);
+      }
+    }
+
+    async function clearTP(id) {
+      const { data: { session } } = await sbClient.auth.getSession();
+      if (!session) return;
+      
+      await sbClient.from('trades').update({ 
+        take_profit: null, 
+        take_profit_type: null, 
+        take_profit_input: null, 
+        take_profit_pnl: null 
+      }).eq('id', id);
+      
+      const input = document.getElementById(`tp-${id}`);
+      const select = document.getElementById(`tp-type-${id}`);
+      const container = input?.parentElement;
+      
+      if (input) {
+        input.readOnly = false;
+        input.value = '';
+        input.style.borderColor = '#333';
+        input.style.cursor = 'text';
+        input.style.opacity = '1';
+      }
+      if (select) {
+        select.disabled = false;
+        select.style.cursor = 'pointer';
+        select.style.opacity = '1';
+      }
+      
+      // Remove X button
+      const xBtn = container?.querySelector('button[title="Clear TP"]');
+      if (xBtn) xBtn.remove();
+      
+      const statusEl = document.getElementById(`tp-status-${id}`);
+      if (statusEl) {
+        statusEl.textContent = 'Cleared';
+        setTimeout(() => statusEl.textContent = '', 2000);
+      }
+    }
+
+    async function clearSL(id) {
+      const { data: { session } } = await sbClient.auth.getSession();
+      if (!session) return;
+      
+      await sbClient.from('trades').update({ 
+        stop_loss: null, 
+        stop_loss_type: null, 
+        stop_loss_input: null, 
+        stop_loss_pnl: null 
+      }).eq('id', id);
+      
+      const input = document.getElementById(`sl-${id}`);
+      const select = document.getElementById(`sl-type-${id}`);
+      const container = input?.parentElement;
+      
+      if (input) {
+        input.readOnly = false;
+        input.value = '';
+        input.style.borderColor = '#333';
+        input.style.cursor = 'text';
+        input.style.opacity = '1';
+      }
+      if (select) {
+        select.disabled = false;
+        select.style.cursor = 'pointer';
+        select.style.opacity = '1';
+      }
+      
+      // Remove X button
+      const xBtn = container?.querySelector('button[title="Clear SL"]');
+      if (xBtn) xBtn.remove();
+      
+      const statusEl = document.getElementById(`sl-status-${id}`);
+      if (statusEl) {
+        statusEl.textContent = 'Cleared';
+        setTimeout(() => statusEl.textContent = '', 2000);
       }
     }
 
@@ -468,6 +602,14 @@
         opt.value = s.id; opt.textContent = s.name;
         sel.appendChild(opt);
       });
+    }
+
+    let closedTradesPage = 1;
+    const closedTradesPerPage = 10;
+
+    function changeClosedTradesPage(direction) {
+      closedTradesPage += direction;
+      loadTrades();
     }
 
     async function loadTrades() {
@@ -555,12 +697,9 @@
             pnlHtml = `<span class="${diff >= 0 ? 'pnl-pos' : 'pnl-neg'}">${diff >= 0 ? '+' : ''}$${diff.toFixed(2)} (${diff >= 0 ? '+' : ''}${pct}%)</span>`;
           }
           const isFilled = t.status === 'filled';
-          const statusBadge = isFilled
-            ? `<span class="badge badge-long" style="margin-left:6px;font-size:0.68rem;">Filled</span>`
-            : `<span class="badge" style="margin-left:6px;font-size:0.68rem;background:rgba(255,193,7,0.12);color:#ffc107;">Pending</span>`;
           const filledAt = t.filled_at ? new Date(t.filled_at).toLocaleString() : '—';
           return `<tr>
-            <td style="color:var(--text);font-weight:600;">${t.symbol || '—'}${statusBadge}</td>
+            <td style="color:var(--text);font-weight:600;">${t.symbol || '—'}</td>
             <td><span class="badge ${direction === 'Long' ? 'badge-long' : 'badge-short'}">${direction}</span></td>
             <td style="color:var(--muted);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;">${detectAssetType(t.symbol, t.payload)}</td>
             <td>${t.quantity || '—'}</td>
@@ -569,23 +708,25 @@
             <td>${pnlHtml}</td>
             <td>
               <div style="display:flex;gap:6px;align-items:center;">
-                <input type="number" step="0.01" id="tp-${t.id}" placeholder="TP" value="${t.take_profit_input || t.take_profit || ''}" onkeydown="if(event.key==='Enter'){updateTPSL('${t.id}','take_profit',this.value,document.getElementById('tp-type-${t.id}').value,${entryPrice},'${direction}');this.style.borderColor='var(--accent)';setTimeout(()=>this.style.borderColor='#333',1000);}" style="width:100px;background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px 10px;border-radius:6px;font-size:0.85rem;font-weight:600;outline:none;transition:border-color 0.2s;">
-                <select id="tp-type-${t.id}" onchange="updateTPSL('${t.id}', 'take_profit', document.getElementById('tp-${t.id}').value, this.value, ${entryPrice}, '${direction}')" style="background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px;border-radius:6px;font-size:0.8rem;width:50px;cursor:pointer;">
-                  <option value="price" ${t.take_profit_type !== 'percent' && t.take_profit_type !== 'pnl' ? 'selected' : ''}>$</option>
+                <input type="number" step="0.01" id="tp-${t.id}" placeholder="TP" value="${t.take_profit_input || ''}" ${t.take_profit ? 'readonly' : ''} onkeydown="if(event.key==='Enter'){updateTPSL('${t.id}','take_profit',this.value,document.getElementById('tp-type-${t.id}').value,${entryPrice},'${direction}',${t.quantity || 1});lockTPInput('${t.id}');}" style="width:100px;background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px 10px;border-radius:6px;font-size:0.85rem;font-weight:600;outline:none;transition:border-color 0.2s;${t.take_profit ? 'cursor:not-allowed;opacity:0.7;' : ''}">
+                <select id="tp-type-${t.id}" ${t.take_profit ? 'disabled' : ''} onchange="updateTPSL('${t.id}', 'take_profit', document.getElementById('tp-${t.id}').value, this.value, ${entryPrice}, '${direction}', ${t.quantity || 1})" style="background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px;border-radius:6px;font-size:0.75rem;width:55px;cursor:${t.take_profit ? 'not-allowed' : 'pointer'};${t.take_profit ? 'opacity:0.5;' : ''}">
+                  <option value="price" ${t.take_profit_type !== 'percent' && t.take_profit_type !== 'pnl' ? 'selected' : ''}>Price</option>
                   <option value="percent" ${t.take_profit_type === 'percent' ? 'selected' : ''}>%</option>
                   <option value="pnl" ${t.take_profit_type === 'pnl' ? 'selected' : ''}>P&L</option>
                 </select>
+                ${t.take_profit ? `<button onclick="clearTP('${t.id}')" style="background:none;border:none;color:var(--red);font-size:1rem;cursor:pointer;padding:4px;line-height:1;" title="Clear TP">×</button>` : ''}
               </div>
               <div id="tp-status-${t.id}" style="font-size:0.65rem;color:var(--muted);margin-top:2px;height:14px;"></div>
             </td>
             <td>
               <div style="display:flex;gap:6px;align-items:center;">
-                <input type="number" step="0.01" id="sl-${t.id}" placeholder="SL" value="${t.stop_loss_input || t.stop_loss || ''}" onkeydown="if(event.key==='Enter'){updateTPSL('${t.id}','stop_loss',this.value,document.getElementById('sl-type-${t.id}').value,${entryPrice},'${direction}');this.style.borderColor='var(--red)';setTimeout(()=>this.style.borderColor='#333',1000);}" style="width:100px;background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px 10px;border-radius:6px;font-size:0.85rem;font-weight:600;outline:none;transition:border-color 0.2s;">
-                <select id="sl-type-${t.id}" onchange="updateTPSL('${t.id}', 'stop_loss', document.getElementById('sl-${t.id}').value, this.value, ${entryPrice}, '${direction}')" style="background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px;border-radius:6px;font-size:0.8rem;width:50px;cursor:pointer;">
-                  <option value="price" ${t.stop_loss_type !== 'percent' && t.stop_loss_type !== 'pnl' ? 'selected' : ''}>$</option>
+                <input type="number" step="0.01" id="sl-${t.id}" placeholder="SL" value="${t.stop_loss_input || ''}" ${t.stop_loss ? 'readonly' : ''} onkeydown="if(event.key==='Enter'){updateTPSL('${t.id}','stop_loss',this.value,document.getElementById('sl-type-${t.id}').value,${entryPrice},'${direction}',${t.quantity || 1});lockSLInput('${t.id}');}" style="width:100px;background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px 10px;border-radius:6px;font-size:0.85rem;font-weight:600;outline:none;transition:border-color 0.2s;${t.stop_loss ? 'cursor:not-allowed;opacity:0.7;' : ''}">
+                <select id="sl-type-${t.id}" ${t.stop_loss ? 'disabled' : ''} onchange="updateTPSL('${t.id}', 'stop_loss', document.getElementById('sl-${t.id}').value, this.value, ${entryPrice}, '${direction}', ${t.quantity || 1})" style="background:#1a1a1a;border:2px solid #333;color:var(--text);padding:8px;border-radius:6px;font-size:0.75rem;width:55px;cursor:${t.stop_loss ? 'not-allowed' : 'pointer'};${t.stop_loss ? 'opacity:0.5;' : ''}">
+                  <option value="price" ${t.stop_loss_type !== 'percent' && t.stop_loss_type !== 'pnl' ? 'selected' : ''}>Price</option>
                   <option value="percent" ${t.stop_loss_type === 'percent' ? 'selected' : ''}>%</option>
                   <option value="pnl" ${t.stop_loss_type === 'pnl' ? 'selected' : ''}>P&L</option>
                 </select>
+                ${t.stop_loss ? `<button onclick="clearSL('${t.id}')" style="background:none;border:none;color:var(--red);font-size:1rem;cursor:pointer;padding:4px;line-height:1;" title="Clear SL">×</button>` : ''}
               </div>
               <div id="sl-status-${t.id}" style="font-size:0.65rem;color:var(--muted);margin-top:2px;height:14px;"></div>
             </td>
@@ -609,11 +750,35 @@
       if (closed.length === 0) {
         closedEl.innerHTML = '<div class="empty-state">No closed trades yet.</div>';
       } else {
-        const rows = closed.map(t => {
+        // Pagination
+        const totalPages = Math.ceil(closed.length / closedTradesPerPage);
+        if (closedTradesPage > totalPages) closedTradesPage = totalPages;
+        if (closedTradesPage < 1) closedTradesPage = 1;
+        const start = (closedTradesPage - 1) * closedTradesPerPage;
+        const paginated = closed.slice(start, start + closedTradesPerPage);
+        
+        const rows = paginated.map(t => {
           const entryPrice = t.entry_price ?? t.price;
           const direction  = t.direction || (t.action === 'buy' ? 'Long' : 'Short');
-          const pnl = t.pnl;
-          const entryCost = entryPrice * (t.quantity || 1);
+          const pnl = t.pnl ?? 0;
+          
+          // Calculate exit price from entry and P&L
+          const normalizedSymbol = normalizeSymbol(t.symbol);
+          const isOption = /\d{6}[CP]\d+$/.test(t.symbol);
+          const contractMultipliers = {
+            'ES=F': 50, 'MES=F': 5, 'NQ=F': 20, 'MNQ=F': 2,
+            'CL=F': 1000, 'MCL=F': 100, 'GC=F': 100, 'MGC=F': 10,
+            'SI=F': 5000, 'SIL=F': 1000, 'NG=F': 10000,
+            'ZB=F': 1000, 'ZN=F': 1000, 'YM=F': 5, 'MYM=F': 0.5,
+            'RTY=F': 50, 'M2K=F': 5,
+          };
+          const multiplier = isOption ? 100 : (contractMultipliers[normalizedSymbol] || 1);
+          const qty = t.quantity || 1;
+          // P&L = (exitPrice - entryPrice) * multiplier * qty
+          // So: exitPrice = entryPrice + (P&L / (multiplier * qty))
+          const exitPrice = entryPrice + (pnl / (multiplier * qty));
+          
+          const entryCost = entryPrice * multiplier * qty;
           const pct = entryCost > 0 && pnl != null ? ((pnl / entryCost) * 100).toFixed(2) : '0.00';
           const pnlHtml = pnl != null
             ? `<span class="${pnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${pnl >= 0 ? '+' : ''}$${Number(pnl).toFixed(2)} (${pnl >= 0 ? '+' : ''}${pct}%)</span>`
@@ -622,19 +787,33 @@
             <td style="color:var(--text);font-weight:600;">${t.symbol || '—'}</td>
             <td><span class="badge ${direction === 'Long' ? 'badge-long' : 'badge-short'}">${direction}</span></td>
             <td>${t.quantity || '—'}</td>
-            <td>${entryPrice ? '$'+Number(entryPrice).toFixed(2) : '—'}</td>
+            <td>${exitPrice ? '$'+Number(exitPrice).toFixed(2) : '—'}</td>
             <td>${pnlHtml}</td>
             <td style="color:var(--muted);font-size:0.8rem;">${t.broker || 'paper'}</td>
             <td style="color:var(--muted);font-size:0.78rem;">${t.closed_at ? new Date(t.closed_at).toLocaleDateString() : '—'}</td>
           </tr>`;
         });
+        const paginationControls = totalPages > 1 ? `
+          <div style="display:flex;justify-content:center;align-items:center;gap:16px;margin-top:16px;padding:12px;background:#111;border-radius:8px;border:1px solid #2a2a2a;">
+            <button onclick="changeClosedTradesPage(-1)" ${closedTradesPage === 1 ? 'disabled' : ''} 
+              style="background:${closedTradesPage === 1 ? '#333' : 'var(--surface)'};color:var(--text);border:1px solid #2a2a2a;padding:8px 16px;border-radius:6px;cursor:${closedTradesPage === 1 ? 'not-allowed' : 'pointer'};font-family:inherit;font-size:0.85rem;">
+              ← Prev
+            </button>
+            <span style="color:var(--text);font-size:0.85rem;font-weight:500;">Page ${closedTradesPage} of ${totalPages} (${closed.length} trades)</span>
+            <button onclick="changeClosedTradesPage(1)" ${closedTradesPage === totalPages ? 'disabled' : ''}
+              style="background:${closedTradesPage === totalPages ? '#333' : 'var(--surface)'};color:var(--text);border:1px solid #2a2a2a;padding:8px 16px;border-radius:6px;cursor:${closedTradesPage === totalPages ? 'not-allowed' : 'pointer'};font-family:inherit;font-size:0.85rem;">
+              Next →
+            </button>
+          </div>
+        ` : '';
+        
         closedEl.innerHTML = `<table class="trades-table">
           <thead><tr>
             <th>Symbol</th><th>Side</th><th>Qty</th>
-            <th>Entry</th><th>P&L</th><th>Broker</th><th>Closed</th>
+            <th>Exit</th><th>P&L</th><th>Broker</th><th>Closed</th>
           </tr></thead>
           <tbody>${rows.join('')}</tbody>
-        </table>`;
+        </table>${paginationControls}`;
       }
 
       // FAILED TRADES
@@ -842,6 +1021,8 @@
         const slPnl = parseFloat(trade.stop_loss_pnl);
         const tpType = trade.take_profit_type;
         const slType = trade.stop_loss_type;
+        const tpInput = parseFloat(trade.take_profit_input); // Original input value (for %)
+        const slInput = parseFloat(trade.stop_loss_input); // Original input value (for %)
         
         // Calculate current P&L for comparison
         const normalizedSymbol = normalizeSymbol(trade.symbol);
@@ -859,7 +1040,7 @@
         
         console.log(`[TP/SL Check] ${trade.symbol} | ${direction} | Current: $${currentPrice} | Current P&L: $${currentPnl.toFixed(2)} | TP Price: $${tpPrice} | SL Price: $${slPrice} | TP P&L: $${tpPnl} | SL P&L: $${slPnl}`);
         
-        // Check Take Profit - price-based or P&L-based
+        // Check Take Profit - price-based, percent-based, or P&L-based
         if (!isNaN(tpPrice)) {
           if (tpType === 'pnl' && !isNaN(tpPnl)) {
             // P&L-based TP
@@ -871,6 +1052,21 @@
               triggered = true;
               reason = 'Take Profit hit (P&L)';
               console.log(`[TP/SL] Short TP triggered by P&L: ${currentPnl.toFixed(2)} >= ${tpPnl}`);
+            }
+          } else if (tpType === 'percent' && !isNaN(tpInput)) {
+            // Percent-based TP
+            const tpPercent = tpInput; // stored as the percent value (e.g., 10 for 10%)
+            const targetPrice = direction === 'Long' 
+              ? entryPrice * (1 + tpPercent / 100) 
+              : entryPrice * (1 - tpPercent / 100);
+            if (direction === 'Long' && currentPrice >= targetPrice) {
+              triggered = true;
+              reason = `Take Profit hit (${tpPercent}%)`;
+              console.log(`[TP/SL] Long TP triggered by percent: ${currentPrice} >= ${targetPrice} (${tpPercent}%)`);
+            } else if (direction === 'Short' && currentPrice <= targetPrice) {
+              triggered = true;
+              reason = `Take Profit hit (${tpPercent}%)`;
+              console.log(`[TP/SL] Short TP triggered by percent: ${currentPrice} <= ${targetPrice} (${tpPercent}%)`);
             }
           } else {
             // Price-based TP
@@ -886,7 +1082,7 @@
           }
         }
         
-        // Check Stop Loss - price-based or P&L-based
+        // Check Stop Loss - price-based, percent-based, or P&L-based
         if (!triggered && !isNaN(slPrice)) {
           if (slType === 'pnl' && !isNaN(slPnl)) {
             // P&L-based SL (for SL, target is usually negative, so check if P&L <= target)
@@ -898,6 +1094,21 @@
               triggered = true;
               reason = 'Stop Loss hit (P&L)';
               console.log(`[TP/SL] Short SL triggered by P&L: ${currentPnl.toFixed(2)} <= ${slPnl}`);
+            }
+          } else if (slType === 'percent' && !isNaN(slInput)) {
+            // Percent-based SL
+            const slPercent = Math.abs(slInput); // stored as the percent value (e.g., 5 for -5%)
+            const targetPrice = direction === 'Long' 
+              ? entryPrice * (1 - slPercent / 100) 
+              : entryPrice * (1 + slPercent / 100);
+            if (direction === 'Long' && currentPrice <= targetPrice) {
+              triggered = true;
+              reason = `Stop Loss hit (${slPercent}%)`;
+              console.log(`[TP/SL] Long SL triggered by percent: ${currentPrice} <= ${targetPrice} (${slPercent}%)`);
+            } else if (direction === 'Short' && currentPrice >= targetPrice) {
+              triggered = true;
+              reason = `Stop Loss hit (${slPercent}%)`;
+              console.log(`[TP/SL] Short SL triggered by percent: ${currentPrice} >= ${targetPrice} (${slPercent}%)`);
             }
           } else {
             // Price-based SL
