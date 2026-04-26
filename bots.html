@@ -166,6 +166,13 @@
 
     .indicator-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(130,177,255,0.08); border: 1px solid rgba(130,177,255,0.15); color: #82b1ff; font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
 
+    .settings-lock-wrap { position: relative; }
+    .settings-lock-overlay { position: absolute; inset: 0; background: rgba(10,10,10,0.75); border-radius: 10px; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; backdrop-filter: blur(2px); }
+    .settings-lock-overlay.hidden { display: none; }
+    .settings-lock-icon { font-size: 1.4rem; }
+    .settings-lock-msg { font-size: 0.8rem; font-weight: 700; color: var(--muted); text-align: center; line-height: 1.4; }
+    .settings-lock-msg span { color: var(--red); }
+
     .dir-pill { padding: 5px 14px; border-radius: 20px; border: 1px solid #2a2a2a; background: transparent; color: var(--muted); font-size: 0.76rem; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.15s; }
     .dir-pill:hover { border-color: #444; color: var(--text); }
     .dir-pill.active { border-color: var(--accent); background: rgba(0,230,118,0.1); color: var(--accent); }
@@ -424,6 +431,11 @@
           <!-- AUTO BOT SETTINGS (shown when auto mode) -->
           <div id="auto-settings-${s.id}" style="display:${isAuto ? 'block' : 'none'}">
             <div class="section-label">Auto Bot Settings</div>
+            <div class="settings-lock-wrap">
+            <div id="settings-lock-${s.id}" class="settings-lock-overlay ${isRunning ? '' : 'hidden'}">
+              <div class="settings-lock-icon">🔒</div>
+              <div class="settings-lock-msg">Turn off the bot to<br/><span>edit settings</span></div>
+            </div>
             <div class="auto-settings">
               <!-- Scan Mode -->
               <div class="auto-settings-row" style="align-items:flex-start;">
@@ -487,6 +499,7 @@
               <div style="font-size:0.72rem;color:#555;border-top:1px solid #1a1a1a;padding-top:10px;">
                 Indicator: <strong style="color:#82b1ff;">Adaptive SuperTrend + EMA50 + ADX(14)</strong> · Signals on candle close
               </div>
+            </div>
             </div>
           </div>
 
@@ -666,6 +679,8 @@
         else detail.textContent = isRunning ? 'Listening for webhook signals' : 'Stopped — signals ignored';
       }
       if (card) { card.classList.toggle('running', isRunning); card.classList.toggle('stopped', !isRunning); }
+      const lock = document.getElementById('settings-lock-' + systemId);
+      if (lock) lock.classList.toggle('hidden', !isRunning);
     }
 
     function refreshBrokerTag(systemId, broker) {
