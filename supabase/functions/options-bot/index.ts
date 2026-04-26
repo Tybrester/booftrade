@@ -207,6 +207,39 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   );
 
+  // GET /portfolio-value?bot_id=xxx — returns cash + live value of open positions
+  if (req.method === 'GET') {
+    const url = new URL(req.url);
+    const botId = url.searchParams.get('bot_id');
+    if (!botId) return new Response(JSON.stringify({ error: 'bot_id required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    const { data: bot } = await supabase.from('options_bots').select('paper_balance, bot_interval').eq('id', botId).single();
+    const cash = Number(bot?.paper_balance ?? 150000);
+    const interval = bot?.bot_interval ?? '1h';
+
+    const { data: openTrades } = await supabase.from('options_trades').select('*').eq('bot_id', botId).eq('status', 'open');
+    let openValue = 0;
+    const R = 0.05;
+    if (openTrades && openTrades.length > 0) {
+      for (const t of openTrades) {
+        try {
+          const candles = await fetchCandles(t.symbol, interval, 60);
+          if (!candles.length) { openValue += Number(t.total_cost); continue; }
+          const price = candles[candles.length - 1].close;
+          const sigma = calcHistoricalVolatility(candles.map(c => c.close));
+          const expDate = new Date(t.expiration_date);
+          const T = Math.max(0, (expDate.getTime() - Date.now()) / (365 * 24 * 60 * 60 * 1000));
+          const currentPremium = blackScholes(price, t.strike, T, R, sigma, t.option_type);
+          openValue += currentPremium * t.contracts * 100;
+        } catch (_) { openValue += Number(t.total_cost); }
+      }
+    }
+
+    return new Response(JSON.stringify({ cash, open_value: openValue, total: cash + openValue }), {
+      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
   try {
     let targetBotId: string | null = null;
     let targetUserId: string | null = null;

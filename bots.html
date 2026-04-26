@@ -344,6 +344,20 @@
       await sbClient.from('systems').update({ [field]: value }).eq('id', id);
     }
 
+    async function refreshOptBalance(botId) {
+      const el = document.getElementById('opt-paper-bal-' + botId);
+      if (!el) return;
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/options-bot?bot_id=${botId}`, {
+          headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+        });
+        const data = await res.json();
+        if (data.total != null) {
+          el.textContent = '$' + Number(data.total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+      } catch (_) {}
+    }
+
     async function loadOptionsBots() {
       const container = document.getElementById('options-bots-container');
       const { data: bots } = await sbClient.from('options_bots').select('*').eq('user_id', currentUserId).order('created_at', { ascending: false });
@@ -383,8 +397,9 @@
           <!-- Paper balance -->
           <div class="paper-balance-box" style="border-color:#2a2000;">
             <div>
-              <div class="paper-balance-label">Paper Balance</div>
+              <div class="paper-balance-label">Liquidation Balance</div>
               <div class="paper-balance-value" id="opt-paper-bal-${b.id}">$${paperBalance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+              <div style="font-size:0.7rem;color:#555;margin-top:3px;">Cash + open position value</div>
             </div>
             <button class="reset-btn" onclick="resetOptionsPaperBalance('${b.id}')">Reset to $150k</button>
           </div>
@@ -473,6 +488,8 @@
         grid.appendChild(card);
       });
       container.appendChild(grid);
+      // Refresh each bot's liquidation balance from the edge function
+      bots.forEach(b => refreshOptBalance(b.id));
     }
 
     function toggleOptScanMode(botId, mode) {
