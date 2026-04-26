@@ -191,6 +191,7 @@ interface BotSettings {
   adxLength: number; adxThreshold: number; symbol: string;
   dollarAmount: number; interval: string; tradeDirection: string;
   expiryType: string; otmStrikes: number;
+  strikeMode: string; manualStrike: number | null;
 }
 
 // ─────────────────────────────────────────────
@@ -249,6 +250,8 @@ Deno.serve(async (req) => {
         tradeDirection: bot.bot_trade_direction ?? 'both',
         expiryType:     bot.bot_expiry_type    ?? 'weekly',
         otmStrikes:     bot.bot_otm_strikes    ?? 1,
+        strikeMode:     bot.bot_strike_mode    ?? 'budget',
+        manualStrike:   bot.bot_manual_strike  ?? null,
       };
 
       try {
@@ -290,12 +293,43 @@ Deno.serve(async (req) => {
         const expDate = new Date(expirationDate);
         const T = Math.max(1 / 365, (expDate.getTime() - Date.now()) / (365 * 24 * 60 * 60 * 1000));
 
-        // Pick strike based on OTM preference
+        // Strike selection: budget mode or manual
         const strikeInterval = price > 500 ? 5 : price > 100 ? 5 : price > 50 ? 2.5 : 1;
-        const strike = pickStrike(price, settings.otmStrikes, optionType, strikeInterval);
-        const premium = blackScholes(price, strike, T, R, sigma, optionType);
+        let strike: number;
+        let premium: number;
 
-        if (premium <= 0.01) { results.push({ bot_id: bot.id, status: 'skipped', reason: 'Premium too low (deep OTM)' }); continue; }
+        if (settings.strikeMode === 'manual' && settings.manualStrike && settings.manualStrike > 0) {
+          // Manual: use exactly the strike the user specified
+          strike = settings.manualStrike;
+          premium = blackScholes(price, strike, T, R, sigma, optionType);
+        } else {
+          // Budget mode: find the best strike within the dollar budget
+          // Try ITM → ATM → OTM until we find one we can afford at least 1 contract
+          const atmStrike = Math.round(price / strikeInterval) * strikeInterval;
+          const candidateStrikes: number[] = [];
+          for (let offset = -5; offset <= 5; offset++) {
+            const s = atmStrike + offset * strikeInterval;
+            if (s > 0) candidateStrikes.push(s);
+          }
+          // Sort by how affordable: pick best premium we can buy ≥1 contract of within budget
+          let bestStrike = atmStrike;
+          let bestPremium = blackScholes(price, atmStrike, T, R, sigma, optionType);
+          for (const s of candidateStrikes) {
+            const p = blackScholes(price, s, T, R, sigma, optionType);
+            const cost = p * 100; // 1 contract
+            if (cost <= settings.dollarAmount && p > bestPremium * 0.1) {
+              // Prefer higher premium (more value) that still fits budget
+              if (p > bestPremium || bestPremium * 100 > settings.dollarAmount) {
+                bestStrike = s;
+                bestPremium = p;
+              }
+            }
+          }
+          strike = bestStrike;
+          premium = bestPremium;
+        }
+
+        if (premium <= 0.01) { results.push({ bot_id: bot.id, status: 'skipped', reason: 'Premium too low' }); continue; }
 
         // Calculate contracts based on dollar amount
         const contracts = Math.max(1, Math.floor(settings.dollarAmount / (premium * 100)));

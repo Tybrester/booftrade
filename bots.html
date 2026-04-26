@@ -402,13 +402,17 @@
                   <button id="oexp-monthly-${b.id}" class="expiry-pill ${b.bot_expiry_type==='monthly'?'active':''}" onclick="setOptionsExpiry('${b.id}','monthly')">Monthly</button>
                 </div>
               </div>
-              <div class="auto-settings-row"><span>OTM Strikes</span>
-                <select class="auto-input" id="ootm-${b.id}">
-                  <option value="0" ${b.bot_otm_strikes===0?'selected':''}>ATM</option>
-                  <option value="1" ${b.bot_otm_strikes===1||b.bot_otm_strikes==null?'selected':''}>1 Strike OTM</option>
-                  <option value="2" ${b.bot_otm_strikes===2?'selected':''}>2 Strikes OTM</option>
-                  <option value="3" ${b.bot_otm_strikes===3?'selected':''}>3 Strikes OTM</option>
-                </select>
+              <div class="auto-settings-row"><span>Strike Mode</span>
+                <div style="display:flex;gap:6px;">
+                  <button id="osm-budget-${b.id}" class="expiry-pill ${!b.bot_strike_mode||b.bot_strike_mode==='budget'?'active':''}" onclick="setStrikeMode('${b.id}','budget')">By Budget</button>
+                  <button id="osm-manual-${b.id}" class="expiry-pill ${b.bot_strike_mode==='manual'?'active':''}" onclick="setStrikeMode('${b.id}','manual')">Manual Strike</button>
+                </div>
+              </div>
+              <div id="ostrike-budget-row-${b.id}" style="${b.bot_strike_mode==='manual'?'display:none':''};">
+                <div class="auto-settings-row" style="margin-top:-4px;"><span style="font-size:0.76rem;color:#555;">Best option within budget</span><span style="font-size:0.72rem;color:#444;">Auto picks ITM/ATM/OTM</span></div>
+              </div>
+              <div id="ostrike-manual-row-${b.id}" style="${b.bot_strike_mode==='manual'?'':'display:none'};">
+                <div class="auto-settings-row" style="margin-top:-4px;"><span>Strike Price</span><input class="auto-input" id="ostrike-${b.id}" type="number" value="${b.bot_manual_strike||''}" placeholder="e.g. 580"/></div>
               </div>
               <div class="auto-settings-row"><span>Direction</span>
                 <div style="display:flex;gap:6px;">
@@ -433,6 +437,17 @@
       container.appendChild(grid);
     }
 
+    function setStrikeMode(botId, mode) {
+      ['budget','manual'].forEach(m => {
+        const btn = document.getElementById(`osm-${m}-${botId}`);
+        if (btn) btn.classList.toggle('active', m === mode);
+      });
+      const budgetRow = document.getElementById('ostrike-budget-row-' + botId);
+      const manualRow = document.getElementById('ostrike-manual-row-' + botId);
+      if (budgetRow) budgetRow.style.display = mode === 'manual' ? 'none' : '';
+      if (manualRow) manualRow.style.display = mode === 'manual' ? '' : 'none';
+    }
+
     function setOptionsExpiry(botId, type) {
       ['0dte','weekly','monthly'].forEach(t => {
         const btn = document.getElementById(`oexp-${t}-${botId}`);
@@ -451,10 +466,11 @@
       const sym = document.getElementById('osym-' + botId)?.value?.toUpperCase().trim();
       const dol = parseFloat(document.getElementById('odol-' + botId)?.value);
       const int = document.getElementById('oint-' + botId)?.value;
-      const otm = parseInt(document.getElementById('ootm-' + botId)?.value);
       const expiry = ['0dte','weekly','monthly'].find(t => document.getElementById(`oexp-${t}-${botId}`)?.classList.contains('active')) || 'weekly';
       const dir = ['both','long','short'].find(d => document.getElementById(`odir-${d}-${botId}`)?.classList.contains('active')) || 'both';
-      await sbClient.from('options_bots').update({ bot_symbol: sym, bot_dollar_amount: dol, bot_interval: int, bot_otm_strikes: otm, bot_expiry_type: expiry, bot_trade_direction: dir }).eq('id', botId);
+      const strikeMode = ['budget','manual'].find(m => document.getElementById(`osm-${m}-${botId}`)?.classList.contains('active')) || 'budget';
+      const manualStrike = parseFloat(document.getElementById('ostrike-' + botId)?.value) || null;
+      await sbClient.from('options_bots').update({ bot_symbol: sym, bot_dollar_amount: dol, bot_interval: int, bot_expiry_type: expiry, bot_trade_direction: dir, bot_strike_mode: strikeMode, bot_manual_strike: strikeMode === 'manual' ? manualStrike : null }).eq('id', botId);
       const r = document.getElementById('opt-run-result-' + botId);
       if (r) { r.textContent = '✓ Settings saved'; r.className = 'run-result green'; setTimeout(() => { r.textContent=''; r.className='run-result'; }, 2000); }
     }
