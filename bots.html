@@ -346,6 +346,7 @@
 
     async function refreshOptBalance(botId) {
       const el = document.getElementById('opt-paper-bal-' + botId);
+      const pctEl = document.getElementById('opt-paper-pct-' + botId);
       if (!el) return;
       try {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/options-bot?bot_id=${botId}`, {
@@ -354,12 +355,18 @@
         const data = await res.json();
         if (data.total != null) {
           el.textContent = '$' + Number(data.total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          if (pctEl) {
+            const pct = ((data.total - 150000) / 150000) * 100;
+            pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+            pctEl.style.color = pct >= 0 ? 'var(--accent)' : 'var(--red)';
+          }
         }
       } catch (_) {}
     }
 
     async function refreshStockBalance(systemId) {
       const el = document.getElementById('paper-bal-' + systemId);
+      const pctEl = document.getElementById('paper-pct-' + systemId);
       if (!el) return;
       try {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/auto-bot?system_id=${systemId}`, {
@@ -368,6 +375,11 @@
         const data = await res.json();
         if (data.total != null) {
           el.textContent = '$' + Number(data.total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          if (pctEl) {
+            const pct = ((data.total - 150000) / 150000) * 100;
+            pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+            pctEl.style.color = pct >= 0 ? 'var(--accent)' : 'var(--red)';
+          }
         }
       } catch (_) {}
     }
@@ -412,7 +424,10 @@
           <div class="paper-balance-box" style="border-color:#2a2000;">
             <div>
               <div class="paper-balance-label">Liquidation Balance</div>
-              <div class="paper-balance-value" id="opt-paper-bal-${b.id}">$${paperBalance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+              <div style="display:flex;align-items:baseline;gap:10px;">
+                <div class="paper-balance-value" id="opt-paper-bal-${b.id}">$${paperBalance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+                <span id="opt-paper-pct-${b.id}" style="font-size:0.82rem;font-weight:700;"></span>
+              </div>
             </div>
             <button class="reset-btn" onclick="resetOptionsPaperBalance('${b.id}')">Reset to $150k</button>
           </div>
@@ -661,7 +676,10 @@
           <div class="paper-balance-box">
             <div>
               <div class="paper-balance-label">Liquidation Balance</div>
-              <div class="paper-balance-value" id="paper-bal-${s.id}">$${paperBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              <div style="display:flex;align-items:baseline;gap:10px;">
+                <div class="paper-balance-value" id="paper-bal-${s.id}">$${paperBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <span id="paper-pct-${s.id}" style="font-size:0.82rem;font-weight:700;"></span>
+              </div>
             </div>
             <button class="reset-btn" onclick="resetPaperBalance('${s.id}')">Reset to $150k</button>
           </div>` : ''}
