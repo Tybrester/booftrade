@@ -192,6 +192,7 @@ interface BotSettings {
   dollarAmount: number; interval: string; tradeDirection: string;
   expiryType: string; otmStrikes: number;
   strikeMode: string; manualStrike: number | null;
+  takeProfitPct: number; stopLossPct: number;
 }
 
 // ─────────────────────────────────────────────
@@ -263,12 +264,42 @@ Deno.serve(async (req) => {
         otmStrikes:     bot.bot_otm_strikes    ?? 1,
         strikeMode:     bot.bot_strike_mode    ?? 'budget',
         manualStrike:   bot.bot_manual_strike  ?? null,
+        takeProfitPct:  bot.take_profit_pct    ?? 100,
+        stopLossPct:    bot.stop_loss_pct      ?? 20,
       };
 
       const scanMode: string = (bot.bot_scan_mode as string) || 'single';
       const symbolList = scanMode === 'scan_stocks' ? SCAN_STOCKS : [settings.symbol];
 
       try {
+        // ── TP/SL check on all open positions ──
+        const { data: allOpen } = await supabase.from('options_trades').select('*').eq('bot_id', bot.id).eq('status', 'open');
+        if (allOpen && allOpen.length > 0) {
+          for (const open of allOpen) {
+            try {
+              const candles = await fetchCandles(open.symbol, settings.interval, 60);
+              if (!candles.length) continue;
+              const currentPrice = candles[candles.length - 1].close;
+              const sigma = calcHistoricalVolatility(candles.map(c => c.close));
+              const expDate = new Date(open.expiration_date);
+              const T = Math.max(0, (expDate.getTime() - Date.now()) / (365 * 24 * 60 * 60 * 1000));
+              const optType: 'call' | 'put' = open.option_type;
+              const currentPremium = blackScholes(currentPrice, open.strike, T, R, sigma, optType);
+              const pctChange = ((currentPremium - open.premium_per_contract) / open.premium_per_contract) * 100;
+              const shouldTP = pctChange >= settings.takeProfitPct;
+              const shouldSL = pctChange <= -settings.stopLossPct;
+              if (shouldTP || shouldSL) {
+                const pnl = (currentPremium - open.premium_per_contract) * open.contracts * 100;
+                await supabase.from('options_trades').update({ status: 'closed', exit_price: currentPremium, pnl, closed_at: new Date().toISOString() }).eq('id', open.id);
+                const { data: botRow } = await supabase.from('options_bots').select('paper_balance').eq('id', bot.id).single();
+                const bal = Number(botRow?.paper_balance ?? 150000);
+                await supabase.from('options_bots').update({ paper_balance: bal + (open.total_cost + pnl) }).eq('id', bot.id);
+                results.push({ bot_id: bot.id, symbol: open.symbol, status: shouldTP ? 'take_profit' : 'stop_loss', pct_change: pctChange.toFixed(1) + '%', pnl: pnl.toFixed(2) });
+              }
+            } catch (_) {}
+          }
+        }
+
         for (let i = 0; i < symbolList.length; i += 10) {
           const batch = symbolList.slice(i, i + 10);
           await Promise.all(batch.map(async (sym) => {
