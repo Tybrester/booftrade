@@ -421,7 +421,10 @@
             <div style="flex:1;">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
                 <div class="bot-name">${b.name}</div>
-                <span class="status-badge ${isRunning ? 'running' : 'stopped'}" id="opt-status-badge-${b.id}">${isRunning ? 'Running' : 'Stopped'}</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span class="status-badge ${isRunning ? 'running' : 'stopped'}" id="opt-status-badge-${b.id}">${isRunning ? 'Running' : 'Stopped'}</span>
+                  <button onclick="deleteOptionsBot('${b.id}','${b.name.replace(/'/g,"\\'")}')" style="background:none;border:1px solid #2a2a2a;color:#555;font-size:0.7rem;padding:3px 9px;border-radius:6px;cursor:pointer;font-family:inherit;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='#2a2a2a';this.style.color='#555'">Delete</button>
+                </div>
               </div>
               <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;">
                 <span class="bot-broker-tag bot-broker-paper">Paper</span>
@@ -624,6 +627,18 @@
       if (el) el.textContent = '$150,000.00';
     }
 
+    async function deleteBot(id, name) {
+      if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+      await sbClient.from('systems').delete().eq('id', id);
+      document.getElementById('botcard-' + id)?.remove();
+    }
+
+    async function deleteOptionsBot(id, name) {
+      if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+      await sbClient.from('options_bots').delete().eq('id', id);
+      document.getElementById('optcard-' + id)?.remove();
+    }
+
     function promptNewStockBot() {
       const name = prompt('Name your stock bot:');
       if (!name || !name.trim()) return;
@@ -718,7 +733,10 @@
             <div style="flex:1;">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
                 <div class="bot-name">${s.name}</div>
-                <span class="status-badge ${isRunning ? 'running' : 'stopped'}" id="status-badge-${s.id}">${isRunning ? 'Running' : 'Stopped'}</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span class="status-badge ${isRunning ? 'running' : 'stopped'}" id="status-badge-${s.id}">${isRunning ? 'Running' : 'Stopped'}</span>
+                  <button onclick="deleteBot('${s.id}','${s.name.replace(/'/g,"\\'")}')" style="background:none;border:1px solid #2a2a2a;color:#555;font-size:0.7rem;padding:3px 9px;border-radius:6px;cursor:pointer;font-family:inherit;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='#2a2a2a';this.style.color='#555'">Delete</button>
+                </div>
               </div>
               <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;">
                 <span class="bot-broker-tag ${brokerClass}" id="broker-tag-${s.id}">${brokerLabel}</span>
