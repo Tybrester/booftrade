@@ -1034,7 +1034,7 @@
                   </div>
                   <div id="scan-hint-${s.id}" style="font-size:0.7rem;color:#555;text-align:right;">${scanMode==='single'?'Uses the symbol below':scanMode==='scan_stocks'?'50 top US stocks':scanMode==='scan_crypto'?'20 top crypto':scanMode==='scan_futures'?'20 top futures (overnight)':'50 stocks + 20 crypto'}</div>
                 </div>
-                <input type="hidden" id="scanmode-${s.id}" value="${scanMode}" />
+                <input type="hidden" id="scanmode-${s.id}" value="${scanMode}" data-multiple="true" />
               </div>
               <!-- Symbol (hidden in scan mode) -->
               <div class="auto-settings-row" id="sym-row-${s.id}" style="display:${isScan?'none':'flex'}">
@@ -1146,18 +1146,44 @@
     }
 
     function setScanMode(systemId, mode) {
-      document.getElementById('scanmode-' + systemId).value = mode;
-      ['single','scan_stocks','scan_crypto','scan_all'].forEach(m => {
+      const input = document.getElementById('scanmode-' + systemId);
+      let currentModes = input.value.split(',').filter(v => v);
+      
+      if (mode === 'single') {
+        // Single mode clears others
+        currentModes = ['single'];
+      } else {
+        // Remove single if selecting a scan mode
+        currentModes = currentModes.filter(m => m !== 'single');
+        // Toggle the selected mode
+        if (currentModes.includes(mode)) {
+          currentModes = currentModes.filter(m => m !== mode);
+        } else {
+          currentModes.push(mode);
+        }
+        // Default to single if nothing selected
+        if (currentModes.length === 0) currentModes = ['single'];
+      }
+      
+      input.value = currentModes.join(',');
+      
+      // Update button visuals
+      ['single','scan_stocks','scan_crypto','scan_all','scan_futures'].forEach(m => {
         const btn = document.getElementById('scan-' + m + '-' + systemId);
-        if (btn) btn.classList.toggle('active', m === mode);
+        if (btn) btn.classList.toggle('active', currentModes.includes(m));
       });
+      
       // Show/hide symbol row
       const symRow = document.getElementById('sym-row-' + systemId);
-      if (symRow) symRow.style.display = mode === 'single' ? 'flex' : 'none';
+      if (symRow) symRow.style.display = currentModes.includes('single') ? 'flex' : 'none';
+      
       // Update hint
-      const hints = { single: 'Uses the symbol below', scan_stocks: '50 top US stocks', scan_crypto: '20 top crypto', scan_all: '50 stocks + 20 crypto' };
+      const hints = { single: 'Uses the symbol below', scan_stocks: '50 top US stocks', scan_crypto: '20 top crypto', scan_all: '50 stocks + 20 crypto', scan_futures: '20 top futures (overnight)' };
       const hint = document.getElementById('scan-hint-' + systemId);
-      if (hint) hint.textContent = hints[mode] || '';
+      if (hint) {
+        const hintTexts = currentModes.map(m => hints[m]).filter(Boolean);
+        hint.textContent = hintTexts.join(' + ');
+      }
     }
 
     function setBotDir(systemId, direction) {

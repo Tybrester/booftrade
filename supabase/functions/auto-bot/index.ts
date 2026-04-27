@@ -690,40 +690,40 @@ Deno.serve(async (req) => {
         tradeDirection: bot.bot_trade_direction ?? bot.trade_direction ?? 'both',
       };
 
-      const scanMode: string = (bot.bot_scan_mode as string) || 'single';
-      console.log(`[AutoBot] Bot "${bot.name}" | mode=${scanMode} | ${settings.interval}`);
+      const scanModeValue: string = (bot.bot_scan_mode as string) || 'single';
+      const scanModes = scanModeValue.split(',').map(m => m.trim()).filter(m => m);
+      console.log(`[AutoBot] Bot "${bot.name}" | modes=${scanModes.join('+')} | ${settings.interval}`);
 
       try {
-        if (scanMode === 'scan_stocks') {
-          // Run all stocks in parallel batches of 10
-          for (let i = 0; i < SCAN_STOCKS.length; i += 10) {
-            const batch = SCAN_STOCKS.slice(i, i + 10);
-            const batchResults = await Promise.all(batch.map(sym => processSymbol(bot, sym, settings)));
-            results.push(...batchResults);
+        for (const scanMode of scanModes) {
+          if (scanMode === 'scan_stocks') {
+            for (let i = 0; i < SCAN_STOCKS.length; i += 10) {
+              const batch = SCAN_STOCKS.slice(i, i + 10);
+              const batchResults = await Promise.all(batch.map(sym => processSymbol(bot, sym, settings)));
+              results.push(...batchResults);
+            }
+          } else if (scanMode === 'scan_crypto') {
+            for (let i = 0; i < SCAN_CRYPTO.length; i += 10) {
+              const batch = SCAN_CRYPTO.slice(i, i + 10);
+              const batchResults = await Promise.all(batch.map(sym => processSymbol(bot, sym, settings)));
+              results.push(...batchResults);
+            }
+          } else if (scanMode === 'scan_all') {
+            for (let i = 0; i < SCAN_ALL.length; i += 10) {
+              const batch = SCAN_ALL.slice(i, i + 10);
+              const batchResults = await Promise.all(batch.map(sym => processSymbol(bot, sym, settings)));
+              results.push(...batchResults);
+            }
+          } else if (scanMode === 'scan_futures') {
+            for (let i = 0; i < SCAN_FUTURES.length; i += 10) {
+              const batch = SCAN_FUTURES.slice(i, i + 10);
+              const batchResults = await Promise.all(batch.map(sym => processSymbol(bot, sym, settings)));
+              results.push(...batchResults);
+            }
+          } else if (scanMode === 'single') {
+            const r = await processSymbol(bot, settings.symbol, settings);
+            results.push(r);
           }
-        } else if (scanMode === 'scan_crypto') {
-          for (let i = 0; i < SCAN_CRYPTO.length; i += 10) {
-            const batch = SCAN_CRYPTO.slice(i, i + 10);
-            const batchResults = await Promise.all(batch.map(sym => processSymbol(bot, sym, settings)));
-            results.push(...batchResults);
-          }
-        } else if (scanMode === 'scan_all') {
-          for (let i = 0; i < SCAN_ALL.length; i += 10) {
-            const batch = SCAN_ALL.slice(i, i + 10);
-            const batchResults = await Promise.all(batch.map(sym => processSymbol(bot, sym, settings)));
-            results.push(...batchResults);
-          }
-        } else if (scanMode === 'scan_futures') {
-          // Top 20 Futures - trade overnight
-          for (let i = 0; i < SCAN_FUTURES.length; i += 10) {
-            const batch = SCAN_FUTURES.slice(i, i + 10);
-            const batchResults = await Promise.all(batch.map(sym => processSymbol(bot, sym, settings)));
-            results.push(...batchResults);
-          }
-        } else {
-          // Single symbol mode
-          const r = await processSymbol(bot, settings.symbol, settings);
-          results.push(r);
         }
       } catch (err) {
         console.error(`[AutoBot] Error on bot ${bot.id}:`, err);
