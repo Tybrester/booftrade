@@ -466,6 +466,8 @@
         const card = document.createElement('div');
         card.className = 'bot-card' + (isRunning ? ' running' : ' stopped');
         card.id = 'optcard-' + b.id;
+        card.style.cursor = 'pointer';
+        card.onclick = function(e) { const t = e.target; if (t.tagName !== 'BUTTON' && t.tagName !== 'INPUT' && t.tagName !== 'SELECT' && !t.closest('button') && !t.closest('input') && !t.closest('select') && !t.closest('label')) openBotActivityModal('${b.id}', b.name.replace(/'/g,"\\'"), 'options'); };
         card.innerHTML = `
           <div class="bot-header">
             <div style="flex:1;">
@@ -802,6 +804,8 @@
         const card = document.createElement('div');
         card.className = 'bot-card' + (isRunning ? ' running' : ' stopped');
         card.id = 'botcard-' + s.id;
+        card.style.cursor = 'pointer';
+        card.onclick = function(e) { const t = e.target; if (t.tagName !== 'BUTTON' && t.tagName !== 'INPUT' && t.tagName !== 'SELECT' && !t.closest('button') && !t.closest('input') && !t.closest('select') && !t.closest('label')) openBotActivityModal('${s.id}', s.name.replace(/'/g,"\\'"), 'stock'); };
         card.innerHTML = `
           <div class="bot-header">
             <div style="flex:1;">
