@@ -676,8 +676,19 @@ Deno.serve(async (req) => {
 
     // ── Main loop ────────────────────────────────────────────────────────────
     const results: object[] = [];
+    const now = new Date();
 
     for (const bot of bots) {
+      // Check if bot should run based on run_interval_min
+      const runIntervalMin = (bot.run_interval_min as number) ?? 15;
+      const lastRunAt = bot.last_run_at ? new Date(bot.last_run_at as string) : null;
+      const minutesSinceLastRun = lastRunAt ? (now.getTime() - lastRunAt.getTime()) / (1000 * 60) : Infinity;
+      
+      if (minutesSinceLastRun < runIntervalMin) {
+        console.log(`[AutoBot] Skipping "${bot.name}" - ran ${minutesSinceLastRun.toFixed(1)}m ago, interval=${runIntervalMin}m`);
+        continue;
+      }
+      
       const settings: BotSettings = {
         atrLength:      bot.bot_atr_length     ?? 10,
         atrMultiplier:  bot.bot_atr_multiplier ?? 3.0,
@@ -692,7 +703,7 @@ Deno.serve(async (req) => {
 
       const scanModeValue: string = (bot.bot_scan_mode as string) || 'single';
       const scanModes = scanModeValue.split(',').map(m => m.trim()).filter(m => m);
-      console.log(`[AutoBot] Bot "${bot.name}" | modes=${scanModes.join('+')} | ${settings.interval}`);
+      console.log(`[AutoBot] Running "${bot.name}" | modes=${scanModes.join('+')} | ${settings.interval} | interval=${runIntervalMin}m`);
 
       try {
         for (const scanMode of scanModes) {
@@ -725,6 +736,10 @@ Deno.serve(async (req) => {
             results.push(r);
           }
         }
+        
+        // Update last_run_at after successful processing
+        await supabase.from('stock_bots').update({ last_run_at: now.toISOString() }).eq('id', bot.id);
+        
       } catch (err) {
         console.error(`[AutoBot] Error on bot ${bot.id}:`, err);
         results.push({ bot_id: bot.id, status: 'error', error: String(err) });
