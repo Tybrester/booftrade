@@ -234,6 +234,7 @@ async function fetchCandles(symbol: string, interval = '1h', bars = 150): Promis
   const intervalMap: Record<string, { multiplier: number; timespan: string; days: number }> = {
     '1m':  { multiplier: 1,  timespan: 'minute', days: 5   },
     '5m':  { multiplier: 5,  timespan: 'minute', days: 10  },
+    '10m': { multiplier: 10, timespan: 'minute', days: 15  },
     '15m': { multiplier: 15, timespan: 'minute', days: 20  },
     '30m': { multiplier: 30, timespan: 'minute', days: 30  },
     '45m': { multiplier: 45, timespan: 'minute', days: 45  },
