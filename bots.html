@@ -752,7 +752,7 @@
     }
 
     async function createOptionsBot(name) {
-      const { error } = await sbClient.from('options_bots').insert({ user_id: currentUserId, name, enabled: false, auto_submit: false });
+      const { error } = await sbClient.from('options_bots').insert({ user_id: currentUserId, name, enabled: false, auto_submit: false, paper_balance: 100000, paper_balance_start: 100000 });
       if (error) { alert('Error: ' + error.message); return; }
       await loadOptionsBots();
     }

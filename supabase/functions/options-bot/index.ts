@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
     if (!botId) return new Response(JSON.stringify({ error: 'bot_id required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const { data: bot } = await supabase.from('options_bots').select('paper_balance, bot_interval').eq('id', botId).single();
-    const cash = Number(bot?.paper_balance ?? 150000);
+    const cash = Number(bot?.paper_balance ?? 100000);
     const interval = bot?.bot_interval ?? '1h';
 
     const { data: openTrades } = await supabase.from('options_trades').select('*').eq('bot_id', botId).eq('status', 'open');
@@ -331,7 +331,7 @@ Deno.serve(async (req) => {
                 const pnl = (currentPremium - open.premium_per_contract) * open.contracts * 100;
                 await supabase.from('options_trades').update({ status: 'closed', exit_price: currentPremium, pnl, closed_at: new Date().toISOString() }).eq('id', open.id);
                 const { data: botRow } = await supabase.from('options_bots').select('paper_balance').eq('id', bot.id).single();
-                const bal = Number(botRow?.paper_balance ?? 150000);
+                const bal = Number(botRow?.paper_balance ?? 100000);
                 await supabase.from('options_bots').update({ paper_balance: bal + (open.total_cost + pnl) }).eq('id', bot.id);
                 results.push({ bot_id: bot.id, symbol: open.symbol, status: shouldTP ? 'take_profit' : 'stop_loss', pct_change: pctChange.toFixed(1) + '%', pnl: pnl.toFixed(2) });
               }
@@ -369,7 +369,7 @@ Deno.serve(async (req) => {
                   await supabase.from('options_trades').update({ status: 'closed', exit_price: exitPremium, pnl, closed_at: new Date().toISOString() }).eq('id', open.id);
                   // Return original cost + profit/loss back to balance
                   const { data: bRow } = await supabase.from('options_bots').select('paper_balance').eq('id', bot.id).single();
-                  const bBal = Number(bRow?.paper_balance ?? 150000);
+                  const bBal = Number(bRow?.paper_balance ?? 100000);
                   await supabase.from('options_bots').update({ paper_balance: bBal + Number(open.total_cost) + pnl }).eq('id', bot.id);
                 }
               }
@@ -407,7 +407,7 @@ Deno.serve(async (req) => {
               const totalCost = contracts * premium * 100;
 
               const { data: botRow } = await supabase.from('options_bots').select('paper_balance').eq('id', bot.id).single();
-              const currentBalance = Number(botRow?.paper_balance ?? 150000);
+              const currentBalance = Number(botRow?.paper_balance ?? 100000);
               await supabase.from('options_bots').update({ paper_balance: Math.max(0, currentBalance - totalCost) }).eq('id', bot.id);
 
               await supabase.from('options_trades').insert({
