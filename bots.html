@@ -39,6 +39,19 @@
     .bots-col { padding: 28px 28px; }
     .activity-toggle { background: none; border: 1px solid #2a2a2a; color: var(--muted); font-size: 0.75rem; font-weight: 700; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
     .activity-toggle:hover { border-color: var(--accent); color: var(--accent); }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 500; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+    .modal-overlay.open { display: flex; }
+    .create-bot-modal { background: #111; border: 1px solid #222; border-radius: 16px; width: 92%; max-width: 420px; padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 18px; }
+    .create-bot-modal h2 { font-size: 1rem; font-weight: 800; }
+    .create-bot-field { display: flex; flex-direction: column; gap: 6px; }
+    .create-bot-field label { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .create-bot-field input, .create-bot-field select { background: #0f0f0f; border: 1px solid #2a2a2a; color: var(--text); font-family: inherit; font-size: 0.88rem; padding: 9px 12px; border-radius: 8px; width: 100%; outline: none; transition: border-color 0.15s; }
+    .create-bot-field input:focus, .create-bot-field select:focus { border-color: var(--accent); }
+    .create-bot-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+    .create-bot-cancel { background: none; border: 1px solid #2a2a2a; color: var(--muted); font-family: inherit; font-size: 0.85rem; padding: 9px 20px; border-radius: 8px; cursor: pointer; }
+    .create-bot-cancel:hover { border-color: #555; color: var(--text); }
+    .create-bot-submit { background: var(--accent); color: #000; font-family: inherit; font-size: 0.85rem; font-weight: 700; padding: 9px 22px; border-radius: 8px; border: none; cursor: pointer; }
+    .create-bot-submit:hover { background: var(--accent-dim); }
     .activity-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 500; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
     .activity-modal-overlay.open { display: flex; }
     .activity-modal { background: #111; border: 1px solid #222; border-radius: 16px; width: 96%; max-width: 1100px; height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -323,6 +336,43 @@
         </div>
 
       </main>
+    </div>
+  </div>
+
+  <!-- Create Stock Bot Modal -->
+  <div class="modal-overlay" id="create-stock-modal" onclick="if(event.target===this)closeCreateModal('create-stock-modal')">
+    <div class="create-bot-modal">
+      <h2>New Stock Bot</h2>
+      <div class="create-bot-field">
+        <label>Bot Name</label>
+        <input type="text" id="new-stock-name" placeholder="e.g. SPY Momentum" maxlength="40" />
+      </div>
+      <div class="create-bot-field">
+        <label>Signal Strategy</label>
+        <select id="new-stock-signal">
+          <option value="supertrend">Adaptive SuperTrend + EMA50 + ADX(14)</option>
+          <option value="rsi_macd">RSI + EMA + MACD + Bollinger Bands + ATR</option>
+        </select>
+      </div>
+      <div class="create-bot-actions">
+        <button class="create-bot-cancel" onclick="closeCreateModal('create-stock-modal')">Cancel</button>
+        <button class="create-bot-submit" onclick="submitCreateStockBot()">Create Bot</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Options Bot Modal -->
+  <div class="modal-overlay" id="create-options-modal" onclick="if(event.target===this)closeCreateModal('create-options-modal')">
+    <div class="create-bot-modal">
+      <h2>New Options Bot</h2>
+      <div class="create-bot-field">
+        <label>Bot Name</label>
+        <input type="text" id="new-options-name" placeholder="e.g. QQQ Iron Condor" maxlength="40" />
+      </div>
+      <div class="create-bot-actions">
+        <button class="create-bot-cancel" onclick="closeCreateModal('create-options-modal')">Cancel</button>
+        <button class="create-bot-submit" onclick="submitCreateOptionsBot()">Create Bot</button>
+      </div>
     </div>
   </div>
 
@@ -627,6 +677,36 @@
       if (el) el.textContent = '$150,000.00';
     }
 
+    function openCreateModal(id) {
+      const el = document.getElementById(id);
+      el.classList.add('open');
+      const input = el.querySelector('input[type="text"]');
+      if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 50);
+        input.onkeydown = (e) => { if (e.key === 'Enter') el.querySelector('.create-bot-submit').click(); };
+      }
+    }
+
+    function closeCreateModal(id) {
+      document.getElementById(id).classList.remove('open');
+    }
+
+    async function submitCreateStockBot() {
+      const name = document.getElementById('new-stock-name').value.trim();
+      if (!name) { document.getElementById('new-stock-name').focus(); return; }
+      const signal = document.getElementById('new-stock-signal').value;
+      closeCreateModal('create-stock-modal');
+      await createStockBot(name, signal);
+    }
+
+    async function submitCreateOptionsBot() {
+      const name = document.getElementById('new-options-name').value.trim();
+      if (!name) { document.getElementById('new-options-name').focus(); return; }
+      closeCreateModal('create-options-modal');
+      await createOptionsBot(name);
+    }
+
     async function deleteBot(id, name) {
       if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
       await sbClient.from('systems').delete().eq('id', id);
@@ -640,13 +720,7 @@
     }
 
     function promptNewStockBot() {
-      const name = prompt('Name your stock bot:');
-      if (!name || !name.trim()) return;
-      const signalChoice = confirm(
-        'Choose a signal strategy:\n\nOK → Adaptive SuperTrend + EMA50 + ADX(14)\nCancel → RSI + EMA + MACD + Bollinger Bands + ATR'
-      );
-      const signal = signalChoice ? 'supertrend' : 'rsi_macd';
-      createStockBot(name.trim(), signal);
+      openCreateModal('create-stock-modal');
     }
 
     async function createStockBot(name, signal = 'supertrend') {
@@ -670,9 +744,7 @@
     }
 
     function promptNewOptionsBot() {
-      const name = prompt('Name your options bot:');
-      if (!name || !name.trim()) return;
-      createOptionsBot(name.trim());
+      openCreateModal('create-options-modal');
     }
 
     function showNewOptionsBotModal() {
