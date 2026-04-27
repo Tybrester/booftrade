@@ -276,6 +276,16 @@
     let priceInterval = null;
 
     // ── TradingView chart ────────────────────────────────────────────────────
+    function syncChartSymbol(symbolInfo) {
+      const raw = (symbolInfo.ticker || symbolInfo.name || '').replace(/^.*:/,'').toUpperCase();
+      if (!raw || raw === currentSymbol) return;
+      currentSymbol = raw;
+      document.getElementById('order-symbol').value = raw;
+      const si = document.getElementById('symbol-input'); if (si) si.value = raw;
+      startPricePoll(raw);
+      updateSummary();
+    }
+
     function initChart(symbol, interval) {
       if (tvWidget) { try { tvWidget.remove(); } catch(e) {} }
       tvWidget = new TradingView.widget({
@@ -294,6 +304,9 @@
         save_image: false,
         backgroundColor: '#0a0a0a',
         gridColor: 'rgba(255,255,255,0.03)',
+      });
+      tvWidget.onChartReady(() => {
+        tvWidget.chart().onSymbolChanged().subscribe(null, syncChartSymbol);
       });
     }
 
