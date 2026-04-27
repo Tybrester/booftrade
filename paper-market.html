@@ -186,15 +186,6 @@
 
           <!-- Chart -->
           <div class="chart-area">
-            <div class="chart-toolbar">
-              <input class="symbol-input" id="symbol-input" value="AAPL" maxlength="10" />
-              <button class="interval-btn active" data-interval="1" onclick="setInterval_('1',this)">1m</button>
-              <button class="interval-btn" data-interval="5" onclick="setInterval_('5',this)">5m</button>
-              <button class="interval-btn" data-interval="15" onclick="setInterval_('15',this)">15m</button>
-              <button class="interval-btn" data-interval="60" onclick="setInterval_('60',this)">1h</button>
-              <button class="interval-btn" data-interval="D" onclick="setInterval_('D',this)">1D</button>
-              <div id="live-price" class="chart-price" style="color:var(--muted);">—</div>
-            </div>
             <div id="tv-chart"></div>
           </div>
 
@@ -312,7 +303,7 @@
 
     function navigateToSymbol(symbol) {
       currentSymbol = symbol;
-      document.getElementById('symbol-input').value = symbol;
+      const si = document.getElementById('symbol-input'); if (si) si.value = symbol;
       document.getElementById('order-symbol').value = symbol;
       if (tvWidget) { try { tvWidget.setSymbol(symbol, currentInterval, () => {}); } catch(e) { initChart(symbol, currentInterval); } }
       startPricePoll(symbol);
@@ -328,16 +319,18 @@
     // ── Symbol search ────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
       const inp = document.getElementById('symbol-input');
-      inp.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
+      if (inp) {
+        inp.addEventListener('keydown', e => {
+          if (e.key === 'Enter') {
+            const val = inp.value.trim().toUpperCase();
+            if (val) { currentSymbol = val; document.getElementById('order-symbol').value = val; initChart(val, currentInterval); startPricePoll(val); }
+          }
+        });
+        inp.addEventListener('blur', () => {
           const val = inp.value.trim().toUpperCase();
-          if (val) { currentSymbol = val; document.getElementById('order-symbol').value = val; initChart(val, currentInterval); startPricePoll(val); }
-        }
-      });
-      inp.addEventListener('blur', () => {
-        const val = inp.value.trim().toUpperCase();
-        if (val && val !== currentSymbol) { currentSymbol = val; document.getElementById('order-symbol').value = val; initChart(val, currentInterval); startPricePoll(val); }
-      });
+          if (val && val !== currentSymbol) { currentSymbol = val; document.getElementById('order-symbol').value = val; initChart(val, currentInterval); startPricePoll(val); }
+        });
+      }
     });
 
     // ── Live price polling via Polygon ───────────────────────────────────────
@@ -364,6 +357,7 @@
 
     function updatePriceDisplay(price) {
       const el = document.getElementById('live-price');
+      if (!el) return;
       if (price) { el.textContent = '$' + Number(price).toFixed(2); el.className = 'chart-price pos'; }
       else { el.textContent = '—'; el.className = 'chart-price'; el.style.color = 'var(--muted)'; }
     }
