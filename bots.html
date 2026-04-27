@@ -64,6 +64,8 @@
     .act-badge-closed { background: rgba(0,230,118,0.08); color: #555; }
     .pnl-pos { color: var(--accent); font-weight: 700; }
     .pnl-neg { color: var(--red); font-weight: 700; }
+    .act-section-label { font-size: 0.72rem; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.1em; margin: 24px 0 10px; padding-bottom: 8px; border-bottom: 1px solid #1a1a1a; }
+    .act-empty { color: var(--muted); font-size: 0.85rem; padding: 14px 0; }
 
     .page-header { margin-bottom: 28px; display: flex; align-items: center; justify-content: space-between; }
     .page-header h1 { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; }
@@ -936,6 +938,53 @@
       refreshStatusBadge(systemId, on);
     }
 
+    function actTimeStr(d) {
+      const dt = new Date(d);
+      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function actStockRow(tr) {
+      const side = tr.direction || (tr.action === 'buy' ? 'Long' : 'Short');
+      const entry = tr.entry_price ?? tr.price;
+      const pnlHtml = tr.pnl != null
+        ? `<span class="${tr.pnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${tr.pnl >= 0 ? '+' : ''}$${Number(tr.pnl).toFixed(2)}</span>`
+        : '—';
+      return `<tr>
+        <td style="font-weight:600;">${tr.symbol || '—'}</td>
+        <td><span class="act-badge ${side==='Long'?'act-badge-buy':'act-badge-sell'}">${side}</span></td>
+        <td>${tr.quantity || '—'}</td>
+        <td>${entry ? '$'+Number(entry).toFixed(2) : '—'}</td>
+        <td>${pnlHtml}</td>
+        <td style="color:var(--muted);font-size:0.8rem;">${tr.broker || 'paper'}</td>
+        <td style="color:var(--muted);font-size:0.78rem;">${actTimeStr(tr.created_at)}</td>
+      </tr>`;
+    }
+
+    function actStockTable(rows) {
+      return `<table class="act-table"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>P&amp;L</th><th>Broker</th><th>Date</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    }
+
+    function actOptionsRow(tr) {
+      const isCall = tr.option_type === 'call';
+      const pnlHtml = tr.pnl != null
+        ? `<span class="${tr.pnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${tr.pnl >= 0 ? '+' : ''}$${Number(tr.pnl).toFixed(2)}</span>`
+        : '—';
+      return `<tr>
+        <td style="font-weight:600;">${tr.symbol || '—'}</td>
+        <td><span class="act-badge ${isCall?'act-badge-call':'act-badge-put'}">${isCall?'CALL':'PUT'}</span></td>
+        <td>$${tr.strike}</td>
+        <td>${tr.expiration_date || '—'}</td>
+        <td>${tr.contracts} contract${tr.contracts>1?'s':''}</td>
+        <td>$${Number(tr.premium_per_contract).toFixed(2)}</td>
+        <td>${pnlHtml}</td>
+        <td style="color:var(--muted);font-size:0.78rem;">${actTimeStr(tr.created_at)}</td>
+      </tr>`;
+    }
+
+    function actOptionsTable(rows) {
+      return `<table class="act-table"><thead><tr><th>Symbol</th><th>Type</th><th>Strike</th><th>Expiry</th><th>Contracts</th><th>Premium</th><th>P&amp;L</th><th>Date</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    }
+
     async function openBotActivityModal(id, name, type) {
       document.getElementById('activity-modal-title').textContent = name + ' — Activity';
       document.getElementById('activity-modal-body').innerHTML = '<div class="feed-empty">Loading...</div>';
@@ -944,90 +993,70 @@
 
       if (type === 'stock') {
         const { data: trades } = await sbClient.from('trades')
-          .select('symbol, action, direction, price, entry_price, quantity, pnl, status, created_at, closed_at, broker')
+          .select('symbol, action, direction, price, entry_price, quantity, pnl, status, failure_reason, created_at, closed_at, broker')
           .eq('user_id', currentUserId).eq('system_id', id).eq('source', 'auto')
-          .order('created_at', { ascending: false }).limit(200);
+          .order('created_at', { ascending: false }).limit(500);
         const t = trades || [];
-        const closedT = t.filter(x => x.pnl != null);
+        const openT   = t.filter(x => x.status === 'filled' && x.pnl == null);
+        const closedT = t.filter(x => x.status === 'closed');
+        const failedT = t.filter(x => x.status === 'failed');
         const totalPnl = closedT.reduce((s, x) => s + Number(x.pnl), 0);
         const winRate = closedT.length > 0 ? Math.round(closedT.filter(x => x.pnl > 0).length / closedT.length * 100) : 0;
-        const openC = t.filter(x => x.status === 'filled' && x.pnl == null).length;
         document.getElementById('activity-modal-stats').innerHTML = `
-          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Total P&L</div><div class="activity-modal-stat-value" style="color:${totalPnl>=0?'var(--accent)':'var(--red)'}">${totalPnl>=0?'+':''}$${totalPnl.toFixed(2)}</div></div>
+          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Total P&amp;L</div><div class="activity-modal-stat-value" style="color:${totalPnl>=0?'var(--accent)':'var(--red)'}">${totalPnl>=0?'+':''}$${totalPnl.toFixed(2)}</div></div>
           <div class="activity-modal-stat"><div class="activity-modal-stat-label">Win Rate</div><div class="activity-modal-stat-value">${winRate}%</div></div>
-          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Total Trades</div><div class="activity-modal-stat-value">${t.length}</div></div>
-          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Open</div><div class="activity-modal-stat-value">${openC}</div></div>`;
+          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Closed Trades</div><div class="activity-modal-stat-value">${closedT.length}</div></div>
+          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Open</div><div class="activity-modal-stat-value">${openT.length}</div></div>`;
         if (!t.length) { document.getElementById('activity-modal-body').innerHTML = '<div class="feed-empty" style="padding:40px;">No trades yet for this bot.</div>'; return; }
-        const rows = t.map(tr => {
-          const side = tr.direction || (tr.action === 'buy' ? 'Long' : 'Short');
-          const entry = tr.entry_price ?? tr.price;
-          const pnlHtml = tr.pnl != null
-            ? `<span class="${tr.pnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${tr.pnl >= 0 ? '+' : ''}$${Number(tr.pnl).toFixed(2)}</span>`
-            : '<span style="color:#555;">Open</span>';
-          const statusBadge = tr.status === 'closed'
-            ? `<span class="act-badge act-badge-closed">Closed</span>`
-            : tr.status === 'filled'
-            ? `<span class="act-badge act-badge-open">Open</span>`
-            : `<span class="act-badge" style="background:rgba(255,193,7,0.1);color:#ffc107;">${tr.status}</span>`;
-          const dt = new Date(tr.created_at);
-          const timeStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          return `<tr>
-            <td style="font-weight:600;">${tr.symbol || '—'}</td>
-            <td><span class="act-badge ${side==='Long'?'act-badge-buy':'act-badge-sell'}">${side}</span></td>
-            <td>${tr.quantity || '—'}</td>
-            <td>${entry ? '$'+Number(entry).toFixed(2) : '—'}</td>
-            <td>${pnlHtml}</td>
-            <td>${statusBadge}</td>
-            <td style="color:var(--muted);font-size:0.8rem;">${tr.broker || 'paper'}</td>
-            <td style="color:var(--muted);font-size:0.78rem;">${timeStr}</td>
-          </tr>`;
-        }).join('');
-        document.getElementById('activity-modal-body').innerHTML = `<table class="act-table">
-          <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>P&amp;L</th><th>Status</th><th>Broker</th><th>Date</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>`;
+        let html = '';
+        html += `<div class="act-section-label">Open Positions (${openT.length})</div>`;
+        html += openT.length ? actStockTable(openT.map(actStockRow)) : '<div class="act-empty">No open positions.</div>';
+        html += `<div class="act-section-label">Closed Trades (${closedT.length})</div>`;
+        html += closedT.length ? actStockTable(closedT.map(actStockRow)) : '<div class="act-empty">No closed trades.</div>';
+        html += `<div class="act-section-label">Failed Trades (${failedT.length})</div>`;
+        if (failedT.length) {
+          const failRows = failedT.map(tr => {
+            const side = tr.direction || (tr.action === 'buy' ? 'Long' : 'Short');
+            const entry = tr.entry_price ?? tr.price;
+            return `<tr>
+              <td style="font-weight:600;">${tr.symbol || '—'}</td>
+              <td><span class="act-badge ${side==='Long'?'act-badge-buy':'act-badge-sell'}">${side}</span></td>
+              <td>${tr.quantity || '—'}</td>
+              <td>${entry ? '$'+Number(entry).toFixed(2) : '—'}</td>
+              <td style="color:var(--red);font-size:0.85rem;">${tr.failure_reason || 'Insufficient balance'}</td>
+              <td style="color:var(--muted);font-size:0.78rem;">${actTimeStr(tr.created_at)}</td>
+            </tr>`;
+          });
+          html += `<table class="act-table"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Reason</th><th>Date</th></tr></thead><tbody>${failRows.join('')}</tbody></table>`;
+        } else {
+          html += '<div class="act-empty">No failed trades.</div>';
+        }
+        document.getElementById('activity-modal-body').innerHTML = html;
       } else {
         const { data: trades } = await sbClient.from('options_trades')
           .select('symbol, option_type, strike, expiration_date, contracts, premium_per_contract, pnl, status, created_at')
           .eq('user_id', currentUserId).eq('bot_id', id)
-          .order('created_at', { ascending: false }).limit(200);
+          .order('created_at', { ascending: false }).limit(500);
         const t = trades || [];
-        const closedT = t.filter(x => x.pnl != null);
+        const openT   = t.filter(x => x.status === 'open');
+        const closedT = t.filter(x => x.status === 'closed');
+        const failedT = t.filter(x => x.status === 'failed');
         const totalPnl = closedT.reduce((s, x) => s + Number(x.pnl), 0);
         const winRate = closedT.length > 0 ? Math.round(closedT.filter(x => x.pnl > 0).length / closedT.length * 100) : 0;
-        const openC = t.filter(x => x.status === 'open').length;
         document.getElementById('activity-modal-stats').innerHTML = `
-          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Total P&L</div><div class="activity-modal-stat-value" style="color:${totalPnl>=0?'var(--accent)':'var(--red)'}">${totalPnl>=0?'+':''}$${totalPnl.toFixed(2)}</div></div>
+          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Total P&amp;L</div><div class="activity-modal-stat-value" style="color:${totalPnl>=0?'var(--accent)':'var(--red)'}">${totalPnl>=0?'+':''}$${totalPnl.toFixed(2)}</div></div>
           <div class="activity-modal-stat"><div class="activity-modal-stat-label">Win Rate</div><div class="activity-modal-stat-value">${winRate}%</div></div>
-          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Total Trades</div><div class="activity-modal-stat-value">${t.length}</div></div>
-          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Open</div><div class="activity-modal-stat-value">${openC}</div></div>`;
+          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Closed Trades</div><div class="activity-modal-stat-value">${closedT.length}</div></div>
+          <div class="activity-modal-stat"><div class="activity-modal-stat-label">Open</div><div class="activity-modal-stat-value">${openT.length}</div></div>`;
         if (!t.length) { document.getElementById('activity-modal-body').innerHTML = '<div class="feed-empty" style="padding:40px;">No trades yet for this bot.</div>'; return; }
-        const rows = t.map(tr => {
-          const isCall = tr.option_type === 'call';
-          const pnlHtml = tr.pnl != null
-            ? `<span class="${tr.pnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${tr.pnl >= 0 ? '+' : ''}$${Number(tr.pnl).toFixed(2)}</span>`
-            : '<span style="color:#555;">Open</span>';
-          const statusBadge = tr.status === 'closed'
-            ? `<span class="act-badge act-badge-closed">Closed</span>`
-            : `<span class="act-badge act-badge-open">Open</span>`;
-          const dt = new Date(tr.created_at);
-          const timeStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          return `<tr>
-            <td style="font-weight:600;">${tr.symbol || '—'}</td>
-            <td><span class="act-badge ${isCall?'act-badge-call':'act-badge-put'}">${isCall?'CALL':'PUT'}</span></td>
-            <td>$${tr.strike}</td>
-            <td>${tr.expiration_date || '—'}</td>
-            <td>${tr.contracts} contract${tr.contracts>1?'s':''}</td>
-            <td>$${Number(tr.premium_per_contract).toFixed(2)}</td>
-            <td>${pnlHtml}</td>
-            <td>${statusBadge}</td>
-            <td style="color:var(--muted);font-size:0.78rem;">${timeStr}</td>
-          </tr>`;
-        }).join('');
-        document.getElementById('activity-modal-body').innerHTML = `<table class="act-table">
-          <thead><tr><th>Symbol</th><th>Type</th><th>Strike</th><th>Expiry</th><th>Contracts</th><th>Premium</th><th>P&amp;L</th><th>Status</th><th>Date</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>`;
+        let html = '';
+        html += `<div class="act-section-label">Open Positions (${openT.length})</div>`;
+        html += openT.length ? actOptionsTable(openT.map(actOptionsRow)) : '<div class="act-empty">No open positions.</div>';
+        html += `<div class="act-section-label">Closed Trades (${closedT.length})</div>`;
+        html += closedT.length ? actOptionsTable(closedT.map(actOptionsRow)) : '<div class="act-empty">No closed trades.</div>';
+        html += `<div class="act-section-label">Failed Trades (${failedT.length})</div>`;
+        html += failedT.length ? actOptionsTable(failedT.map(actOptionsRow)) : '<div class="act-empty">No failed trades.</div>';
+        document.getElementById('activity-modal-body').innerHTML = html;
       }
     }
 
