@@ -274,6 +274,7 @@
         <div class="bots-col">
           <div class="page-header">
             <h1>Bots</h1>
+            <button class="new-options-btn" onclick="promptNewStockBot()">+ New Stock Bot</button>
           </div>
           <div id="bots-container">
             <div class="empty-state">Loading bots...</div>
@@ -284,6 +285,9 @@
             <div class="section-divider-line"></div>
             <div class="section-divider-label">Options Bots (Paper)</div>
             <div class="section-divider-line"></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+            <button class="new-options-btn" onclick="promptNewOptionsBot()">+ New Options Bot</button>
           </div>
 
           <div id="options-bots-container">
@@ -628,10 +632,39 @@
       if (el) el.textContent = '$150,000.00';
     }
 
-    function showNewOptionsBotModal() {
+    function promptNewStockBot() {
+      const name = prompt('Name your stock bot:');
+      if (!name || !name.trim()) return;
+      createStockBot(name.trim());
+    }
+
+    async function createStockBot(name) {
+      const { error } = await sbClient.from('systems').insert({
+        user_id: currentUserId,
+        name,
+        enabled: false,
+        auto_submit: false,
+        broker: 'paper',
+        bot_symbol: 'SPY',
+        bot_dollar_amount: 500,
+        bot_interval: '1h',
+        bot_trade_direction: 'both',
+        bot_scan_mode: 'single',
+        paper_balance: 150000,
+        paper_balance_start: 150000,
+      });
+      if (error) { alert('Error: ' + error.message); return; }
+      await loadBots();
+    }
+
+    function promptNewOptionsBot() {
       const name = prompt('Name your options bot:');
       if (!name || !name.trim()) return;
       createOptionsBot(name.trim());
+    }
+
+    function showNewOptionsBotModal() {
+      promptNewOptionsBot();
     }
 
     async function createOptionsBot(name) {
