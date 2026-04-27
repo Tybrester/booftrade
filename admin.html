@@ -180,15 +180,24 @@
     }
 
     async function loadUsers() {
-      const { data: accounts } = await sbClient.from('paper_accounts').select('user_id, balance, updated_at').order('updated_at', { ascending: false });
-      const { data: systems } = await sbClient.from('systems').select('user_id, id');
+      const { data: { session } } = await sbClient.auth.getSession();
+      const [{ data: accounts }, { data: systems }, emailRes] = await Promise.all([
+        sbClient.from('paper_accounts').select('user_id, updated_at').order('updated_at', { ascending: false }),
+        sbClient.from('systems').select('user_id, id'),
+        fetch(`${SUPABASE_URL}/functions/v1/admin-users`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_ANON_KEY }
+        }).then(r => r.json()).catch(() => ({ users: [] }))
+      ]);
 
       const systemCounts = {};
       (systems || []).forEach(s => { systemCounts[s.user_id] = (systemCounts[s.user_id] || 0) + 1; });
 
+      const emailMap = {};
+      (emailRes.users || []).forEach(u => { emailMap[u.id] = u.email; });
+
       allUsers = (accounts || []).map(a => ({
         user_id: a.user_id,
-        balance: a.balance,
+        email: emailMap[a.user_id] || '',
         updated_at: a.updated_at,
         systems: systemCounts[a.user_id] || 0,
       }));
@@ -202,7 +211,7 @@
 
       container.innerHTML = `<table class="users-table">
         <thead><tr>
-          <th>User ID</th>
+          <th>Email</th>
           <th>Systems</th>
           <th>Last Active</th>
           <th>Actions</th>
@@ -210,9 +219,8 @@
         <tbody>
           ${users.map(u => {
             const dt = u.updated_at ? new Date(u.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-            const shortId = u.user_id.slice(0, 8) + '…';
             return `<tr>
-              <td style="font-family:monospace;font-size:0.8rem;color:#666;" title="${u.user_id}">${shortId}</td>
+              <td style="font-size:0.85rem;" title="${u.user_id}">${u.email || u.user_id.slice(0,8) + '…'}</td>
               <td>${u.systems}</td>
               <td style="color:#555;">${dt}</td>
               <td>
@@ -227,7 +235,7 @@
 
     function filterUsers() {
       const q = document.getElementById('user-search').value.toLowerCase();
-      renderUsers(allUsers.filter(u => u.user_id.toLowerCase().includes(q)));
+      renderUsers(allUsers.filter(u => u.email.toLowerCase().includes(q) || u.user_id.toLowerCase().includes(q)));
     }
 
     function confirm(title, message, onConfirm, danger = true) {
