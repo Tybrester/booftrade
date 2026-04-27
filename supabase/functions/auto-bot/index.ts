@@ -700,6 +700,8 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log(`[AutoBot] Processed ${results.length} results:`, results);
+
     return new Response(JSON.stringify({ processed: results.length, results }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
