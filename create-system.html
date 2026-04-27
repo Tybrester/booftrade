@@ -662,6 +662,8 @@
         <a href="bots.html" class="sidebar-item">
           <span></span> Bots
         </a>
+        <div class="sidebar-section" style="margin-top:24px;display:none;" id="admin-sidebar-section">Admin</div>
+        <a href="admin.html" class="sidebar-item" id="admin-sidebar-link" style="display:none;">Admin Panel</a>
         <div class="sidebar-section" style="margin-top:24px;">Help</div>
         <a href="how-it-works.html" class="sidebar-item">
           <span></span> How it Works
@@ -1604,6 +1606,13 @@
 
       // User email in dropdown
       document.getElementById('user-email').textContent = session.user.email;
+      // Show admin link if admin
+      if (session.user.user_metadata?.role === 'admin') {
+        const el = document.getElementById('admin-sidebar-link');
+        const sec = document.getElementById('admin-sidebar-section');
+        if (el) el.style.display = '';
+        if (sec) sec.style.display = '';
+      }
 
       // User dropdown toggle
       const dropdown = document.getElementById('user-dropdown');

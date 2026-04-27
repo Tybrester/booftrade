@@ -442,6 +442,8 @@
       <a href="bots.html" class="sidebar-item">
         <span class="sidebar-icon"></span> Bots
       </a>
+        <div class="sidebar-section" style="margin-top:24px;display:none;" id="admin-sidebar-section">Admin</div>
+        <a href="admin.html" class="sidebar-item" id="admin-sidebar-link" style="display:none;">Admin Panel</a>
       <div class="sidebar-section" style="margin-top:24px;">Help</div>
       <a href="how-it-works.html" class="sidebar-item">
         <span class="sidebar-icon"></span> How it Works
@@ -517,6 +519,13 @@
       const email = user.email;
 
       document.getElementById('user-email').textContent = email;
+      // Show admin link if admin
+      if (session.user.user_metadata?.role === 'admin') {
+        const el = document.getElementById('admin-sidebar-link');
+        const sec = document.getElementById('admin-sidebar-section');
+        if (el) el.style.display = '';
+        if (sec) sec.style.display = '';
+      }
       if (firstName) document.getElementById('user-first-name').textContent = firstName;
 
       document.getElementById('loading-screen').style.display = 'none';

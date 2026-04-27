@@ -91,6 +91,8 @@
         <a href="brokers.html" class="sidebar-item">Brokers</a>
         <div class="sidebar-section" style="margin-top:24px;">Bots</div>
         <a href="bots.html" class="sidebar-item">Bots</a>
+        <div class="sidebar-section" style="margin-top:24px;display:none;" id="admin-sidebar-section">Admin</div>
+        <a href="admin.html" class="sidebar-item" id="admin-sidebar-link" style="display:none;">Admin Panel</a>
         <div class="sidebar-section" style="margin-top:24px;">Help</div>
         <a href="how-it-works.html" class="sidebar-item active">How it Works</a>
       </aside>
@@ -173,6 +175,13 @@
       if (!session) { window.location.href = 'signin.html'; return; }
       
       document.getElementById('user-email').textContent = session.user.email || 'User';
+      // Show admin link if admin
+      if (session.user.user_metadata?.role === 'admin') {
+        const el = document.getElementById('admin-sidebar-link');
+        const sec = document.getElementById('admin-sidebar-section');
+        if (el) el.style.display = '';
+        if (sec) sec.style.display = '';
+      }
       
       document.getElementById('loading-screen').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
