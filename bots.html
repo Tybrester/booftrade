@@ -654,15 +654,19 @@
       const sl = Math.abs(parseFloat(document.getElementById('osl-' + botId)?.value) || 20);
       const broker = document.getElementById('obrk-' + botId)?.value || 'paper';
       const botSignal = document.getElementById('osig-' + botId)?.value || 'supertrend';
+      console.log(`[SaveOptions] Bot ${botId}: sym=${sym}, int=${int}, dir=${dir}, signal=${botSignal}, scan=${scanMode}, $=${dol}`);
       const brkWarn = document.getElementById('obrk-warn-' + botId);
       if (brkWarn) brkWarn.style.display = broker === 'tastytrade' ? 'flex' : 'none';
-      await sbClient.from('options_bots').update({ bot_symbol: sym, bot_dollar_amount: dol, bot_interval: int, bot_expiry_type: expiry, bot_trade_direction: dir, bot_strike_mode: strikeMode, bot_manual_strike: strikeMode === 'manual' ? manualStrike : null, bot_scan_mode: scanMode, take_profit_pct: tp, stop_loss_pct: sl, broker, bot_signal: botSignal }).eq('id', botId);
+      const { error } = await sbClient.from('options_bots').update({ bot_symbol: sym, bot_dollar_amount: dol, bot_interval: int, bot_expiry_type: expiry, bot_trade_direction: dir, bot_strike_mode: strikeMode, bot_manual_strike: strikeMode === 'manual' ? manualStrike : null, bot_scan_mode: scanMode, take_profit_pct: tp, stop_loss_pct: sl, broker, bot_signal: botSignal, updated_at: new Date().toISOString() }).eq('id', botId);
+      if (error) console.error('[SaveOptions] Error:', error);
+      else console.log('[SaveOptions] Success');
       const r = document.getElementById('opt-run-result-' + botId);
-      if (r) { r.textContent = '✓ Settings saved'; r.className = 'run-result green'; setTimeout(() => { r.textContent=''; r.className='run-result'; }, 2000); }
+      if (r) { r.textContent = '✓ Settings saved ' + new Date().toLocaleTimeString(); r.className = 'run-result green'; setTimeout(() => { r.textContent=''; r.className='run-result'; }, 3000); }
     }
 
     async function toggleOptionsBot(botId, on) {
-      if (on) await saveOptionsSettings(botId);
+      console.log(`[ToggleOptions] Bot ${botId} → ${on ? 'ON' : 'OFF'}`);
+      if (on) { console.log('[ToggleOptions] Auto-saving before enable...'); await saveOptionsSettings(botId); }
       await sbClient.from('options_bots').update({ enabled: on, auto_submit: on }).eq('id', botId);
       const badge = document.getElementById('opt-status-badge-' + botId);
       const detail = document.getElementById('opt-status-text-' + botId);
@@ -951,7 +955,8 @@
       const botTradeDir = document.getElementById('dir-' + systemId)?.value || 'both';
       const botScanMode = document.getElementById('scanmode-' + systemId)?.value || 'single';
       const botSignal = document.getElementById('sig-' + systemId)?.value || 'supertrend';
-      await sbClient.from('systems').update({
+      console.log(`[SaveAuto] System ${systemId}: sym=${symbol}, int=${interval}, dir=${botTradeDir}, signal=${botSignal}, scan=${botScanMode}, $=${dollarAmount}`);
+      const { error } = await sbClient.from('systems').update({
         bot_symbol: symbol,
         bot_dollar_amount: dollarAmount,
         bot_interval: interval,
@@ -959,11 +964,14 @@
         bot_trade_direction: botTradeDir,
         bot_scan_mode: botScanMode,
         bot_signal: botSignal,
+        updated_at: new Date().toISOString()
       }).eq('id', systemId);
+      if (error) console.error('[SaveAuto] Error:', error);
+      else console.log('[SaveAuto] Success');
       // Update header broker tag
       refreshBrokerTag(systemId, broker);
       const resultEl = document.getElementById('run-result-' + systemId);
-      if (resultEl) { resultEl.textContent = '✓ Settings saved'; resultEl.className = 'run-result green'; setTimeout(() => { resultEl.textContent = ''; resultEl.className = 'run-result'; }, 2000); }
+      if (resultEl) { resultEl.textContent = '✓ Settings saved ' + new Date().toLocaleTimeString(); resultEl.className = 'run-result green'; setTimeout(() => { resultEl.textContent = ''; resultEl.className = 'run-result'; }, 3000); }
     }
 
 
@@ -1040,7 +1048,8 @@
     }
 
     async function toggleBot(systemId, on) {
-      if (on) await saveAutoSettings(systemId);
+      console.log(`[ToggleAuto] System ${systemId} → ${on ? 'ON' : 'OFF'}`);
+      if (on) { console.log('[ToggleAuto] Auto-saving before enable...'); await saveAutoSettings(systemId); }
       await sbClient.from('systems').update({ enabled: on, auto_submit: on }).eq('id', systemId);
       refreshStatusBadge(systemId, on);
     }
