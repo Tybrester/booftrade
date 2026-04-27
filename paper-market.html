@@ -109,6 +109,7 @@
     .field-input:focus { border-color: var(--accent); }
 
     .order-type-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+    #amt-shares-btn, #amt-dollars-btn { transition: background 0.15s, color 0.15s; }
     .otype-tab { flex: 1; padding: 6px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.75rem; font-weight: 600; cursor: pointer; font-family: inherit; background: transparent; color: var(--muted); transition: all 0.15s; }
     .otype-tab.active { background: rgba(255,255,255,0.07); border-color: #555; color: var(--text); }
 
@@ -221,11 +222,16 @@
                 <input class="field-input" id="order-limit-price" type="number" placeholder="0.00" oninput="updateSummary()" />
               </div>
 
-              <div class="field-label">Quantity (shares)</div>
-              <input class="field-input" id="order-qty" type="number" placeholder="1" min="1" oninput="updateSummary()" />
-
-              <div class="field-label">Or Dollar Amount ($)</div>
-              <input class="field-input" id="order-dollars" type="number" placeholder="500" oninput="onDollarInput()" />
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <span class="field-label" style="margin-bottom:0;">Amount</span>
+                <div style="display:flex;background:#1a1a1a;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+                  <button id="amt-shares-btn" onclick="setAmountMode('shares')" style="padding:4px 10px;font-size:0.72rem;font-weight:700;border:none;cursor:pointer;font-family:inherit;background:var(--accent);color:#000;transition:all 0.15s;">Shares</button>
+                  <button id="amt-dollars-btn" onclick="setAmountMode('dollars')" style="padding:4px 10px;font-size:0.72rem;font-weight:700;border:none;cursor:pointer;font-family:inherit;background:transparent;color:var(--muted);transition:all 0.15s;">Dollars</button>
+                </div>
+              </div>
+              <input class="field-input" id="order-amount" type="number" placeholder="1" min="0" oninput="onAmountInput()" />
+              <input type="hidden" id="order-qty" />
+              <input type="hidden" id="order-dollars" />
 
               <div class="order-summary" id="order-summary">
                 <div class="order-summary-row"><span>Symbol</span><span id="sum-sym">—</span></div>
@@ -392,22 +398,31 @@
       updateSummary();
     }
 
-    function onDollarInput() {
-      const dollars = parseFloat(document.getElementById('order-dollars').value) || 0;
-      const price = livePrice || 0;
-      if (dollars > 0 && price > 0) {
-        const qty = Math.max(1, Math.floor(dollars / price));
-        document.getElementById('order-qty').value = qty;
-      }
+    let amountMode = 'shares';
+
+    function setAmountMode(mode) {
+      amountMode = mode;
+      const sharesBtn = document.getElementById('amt-shares-btn');
+      const dollarsBtn = document.getElementById('amt-dollars-btn');
+      sharesBtn.style.background = mode === 'shares' ? 'var(--accent)' : 'transparent';
+      sharesBtn.style.color = mode === 'shares' ? '#000' : 'var(--muted)';
+      dollarsBtn.style.background = mode === 'dollars' ? 'var(--accent)' : 'transparent';
+      dollarsBtn.style.color = mode === 'dollars' ? '#000' : 'var(--muted)';
+      const inp = document.getElementById('order-amount');
+      inp.placeholder = mode === 'shares' ? '1' : '500';
+      inp.value = '';
       updateSummary();
     }
 
+    function onAmountInput() { updateSummary(); }
+
     function updateSummary() {
       const sym = document.getElementById('order-symbol').value.trim().toUpperCase() || currentSymbol;
-      const qty = parseInt(document.getElementById('order-qty').value) || 0;
+      const amount = parseFloat(document.getElementById('order-amount').value) || 0;
       const price = currentOrderType === 'limit'
         ? (parseFloat(document.getElementById('order-limit-price').value) || livePrice || 0)
         : (livePrice || 0);
+      const qty = amountMode === 'shares' ? amount : (price > 0 ? Math.floor(amount / price) : 0);
       document.getElementById('sum-sym').textContent = sym || '—';
       document.getElementById('sum-price').textContent = price ? '$' + price.toFixed(2) : '—';
       document.getElementById('sum-qty').textContent = qty || '—';
@@ -545,12 +560,9 @@
 
       if (!price || price <= 0) { showMsg('Could not get current price. Try again.', 'error'); return; }
 
-      let qty = parseInt(document.getElementById('order-qty').value);
-      const dollars = parseFloat(document.getElementById('order-dollars').value);
-      if (!qty || qty <= 0) {
-        if (dollars > 0) qty = Math.max(1, Math.floor(dollars / price));
-        else { showMsg('Enter quantity or dollar amount.', 'error'); return; }
-      }
+      const amount = parseFloat(document.getElementById('order-amount').value) || 0;
+      let qty = amountMode === 'shares' ? Math.floor(amount) : Math.floor(amount / price);
+      if (!qty || qty <= 0) { showMsg('Enter a valid amount.', 'error'); return; }
 
       const totalCost = qty * price;
       const bal = Number(selectedSystem.paper_balance);
@@ -585,10 +597,8 @@
         renderBalance();
 
         showMsg(`${currentSide === 'buy' ? 'Bought' : 'Sold'} ${qty} ${sym} @ $${price.toFixed(2)}`, 'success');
-        document.getElementById('order-qty').value = '';
-        document.getElementById('order-dollars').value = '';
+        document.getElementById('order-amount').value = '';
         updateSummary();
-        loadPositions();
         loadHistory();
       } catch(e) {
         showMsg('Order failed: ' + e.message, 'error');
