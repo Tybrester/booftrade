@@ -732,7 +732,8 @@
     }
 
     async function createStockBot(name, signal = 'supertrend') {
-      const { error } = await sbClient.from('systems').insert({
+      console.log(`[CreateStockBot] Creating stock bot: ${name}`);
+      const { data, error } = await sbClient.from('systems').insert({
         user_id: currentUserId,
         name,
         enabled: false,
@@ -746,8 +747,9 @@
         bot_signal: signal,
         paper_balance: 100000,
         paper_balance_start: 100000,
-      });
-      if (error) { alert('Error: ' + error.message); return; }
+      }).select();
+      if (error) { console.error('[CreateStockBot] Error:', error); alert('Error: ' + error.message); return; }
+      console.log('[CreateStockBot] Created:', data?.[0]?.id);
       await loadBots();
     }
 
@@ -760,8 +762,10 @@
     }
 
     async function createOptionsBot(name) {
-      const { error } = await sbClient.from('options_bots').insert({ user_id: currentUserId, name, enabled: false, auto_submit: false, paper_balance: 100000, paper_balance_start: 100000 });
-      if (error) { alert('Error: ' + error.message); return; }
+      console.log(`[CreateOptionsBot] Creating options bot: ${name}`);
+      const { data, error } = await sbClient.from('options_bots').insert({ user_id: currentUserId, name, enabled: false, auto_submit: false, paper_balance: 100000, paper_balance_start: 100000 }).select();
+      if (error) { console.error('[CreateOptionsBot] Error:', error); alert('Error: ' + error.message); return; }
+      console.log('[CreateOptionsBot] Created:', data?.[0]?.id);
       await loadOptionsBots();
     }
 
