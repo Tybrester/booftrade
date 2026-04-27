@@ -297,6 +297,7 @@
     let tvWidget = null;
     let systems = [];
     let selectedSystem = null;
+    let paperAcct = null;
     let priceInterval = null;
 
     // ── TradingView chart ────────────────────────────────────────────────────
@@ -478,19 +479,21 @@
 
     // ── System / balance ─────────────────────────────────────────────────────
     async function loadSystems() {
-      const { data } = await sbClient.from('systems').select('id, name, paper_market_balance, paper_market_balance_start').eq('user_id', currentUser.id).order('created_at');
+      const { data } = await sbClient.from('systems').select('id, name').eq('user_id', currentUser.id).order('created_at');
       systems = data || [];
+      const { data: acct } = await sbClient.from('paper_accounts').select('balance').eq('user_id', currentUser.id).maybeSingle();
+      paperAcct = acct;
       if (systems.length > 0) { selectedSystem = systems[0]; renderBalance(); loadOpenPositions(); loadHistory(); }
     }
 
     function renderBalance() {
       const balEl = document.getElementById('bal-val');
       const pctEl = document.getElementById('bal-pct');
-      if (!selectedSystem) { balEl.textContent = '—'; pctEl.textContent = ''; return; }
-      const bal = Number(selectedSystem.paper_market_balance ?? 150000);
-      const start = Number(selectedSystem.paper_market_balance_start ?? 150000);
+      if (!balEl) return;
+      const bal = Number(paperAcct?.balance ?? 100000);
+      const start = 100000;
       balEl.textContent = '$' + bal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const pct = start > 0 ? ((bal - start) / start * 100) : 0;
+      const pct = ((bal - start) / start) * 100;
       pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
       pctEl.className = 'balance-pct ' + (pct >= 0 ? 'pos' : 'neg');
     }
@@ -508,9 +511,12 @@
       await sbClient.from('trades').update({ pnl, status: 'closed', closed_at: new Date().toISOString(), exit_price: price }).eq('id', tradeId);
 
       // Update paper balance
-      const newBal = Number(selectedSystem.paper_market_balance ?? 150000) + (originalAction === 'buy' ? qty * price : -(qty * price)) + pnl;
-      await sbClient.from('systems').update({ paper_market_balance: Math.max(0, newBal) }).eq('id', selectedSystem.id);
-      selectedSystem.paper_market_balance = Math.max(0, newBal);
+      const curBal = Number(paperAcct?.balance ?? 100000);
+      const proceeds = originalAction === 'buy' ? qty * price : -(qty * price);
+      const newBal = curBal + proceeds + pnl;
+      if (paperAcct) { await sbClient.from('paper_accounts').update({ balance: Math.max(0, newBal), updated_at: new Date().toISOString() }).eq('user_id', currentUser.id); }
+      else { await sbClient.from('paper_accounts').insert({ user_id: currentUser.id, balance: Math.max(0, newBal) }); }
+      paperAcct = { balance: Math.max(0, newBal) };
       renderBalance();
 
       // Insert close trade record
@@ -664,7 +670,7 @@
       if (!qty || qty <= 0) { showMsg('Enter a valid amount.', 'error'); return; }
 
       const totalCost = qty * price;
-      const bal = Number(selectedSystem.paper_market_balance ?? 150000);
+      const bal = Number(paperAcct?.balance ?? 100000);
 
       if (currentSide === 'buy' && totalCost > bal) {
         showMsg(`Insufficient balance. Need $${totalCost.toFixed(2)}, have $${bal.toFixed(2)}.`, 'error'); return;
@@ -691,8 +697,9 @@
 
         // Update paper balance
         const newBal = currentSide === 'buy' ? bal - totalCost : bal + totalCost;
-        await sbClient.from('systems').update({ paper_market_balance: Math.max(0, newBal) }).eq('id', selectedSystem.id);
-        selectedSystem.paper_market_balance = Math.max(0, newBal);
+        if (paperAcct) { await sbClient.from('paper_accounts').update({ balance: Math.max(0, newBal), updated_at: new Date().toISOString() }).eq('user_id', currentUser.id); }
+        else { await sbClient.from('paper_accounts').insert({ user_id: currentUser.id, balance: Math.max(0, newBal) }); }
+        paperAcct = { balance: Math.max(0, newBal) };
         renderBalance();
 
         showMsg(`${currentSide === 'buy' ? 'Bought' : 'Sold'} ${qty} ${sym} @ $${price.toFixed(2)}`, 'success');
