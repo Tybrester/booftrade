@@ -1152,9 +1152,16 @@
       if (mode === 'single') {
         // Single mode clears others
         currentModes = ['single'];
+      } else if (mode === 'scan_all') {
+        // All Markets is exclusive - clears all others
+        if (currentModes.includes('scan_all')) {
+          currentModes = ['single']; // Toggle off
+        } else {
+          currentModes = ['scan_all']; // Select only All Markets
+        }
       } else {
-        // Remove single if selecting a scan mode
-        currentModes = currentModes.filter(m => m !== 'single');
+        // Remove single and scan_all if selecting other scan modes
+        currentModes = currentModes.filter(m => m !== 'single' && m !== 'scan_all');
         // Toggle the selected mode
         if (currentModes.includes(mode)) {
           currentModes = currentModes.filter(m => m !== mode);
