@@ -780,9 +780,9 @@
 
       if (error || !stockBots || stockBots.length === 0) {
         container.innerHTML = `<div class="empty-state">
-          <div>No bots yet.</div>
-          <div style="margin-top:8px;font-size:0.82rem;">Create a System first, then connect it to a TradingView alert.</div>
-          <button class="btn-primary" style="margin-top:16px;" onclick="window.location.href='alerts.html'">Create a System</button>
+          <div>No stock bots yet.</div>
+          <div style="margin-top:8px;font-size:0.82rem;">Create a stock bot to start auto-trading.</div>
+          <button class="btn-primary" style="margin-top:16px;" onclick="promptNewStockBot()">Create a Stock Bot</button>
         </div>`;
         return;
       }
