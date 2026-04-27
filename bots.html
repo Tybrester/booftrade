@@ -411,7 +411,6 @@
       const el = document.getElementById('opt-paper-bal-' + botId);
       const pctEl = document.getElementById('opt-paper-pct-' + botId);
       if (!el) return;
-      // Show initial value from bot data
       try {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/options-bot?bot_id=${botId}`, {
           headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
@@ -428,17 +427,15 @@
       } catch (_) {}
     }
 
-    async function refreshStockBalance(botId) {
-      const el = document.getElementById('paper-bal-' + botId);
-      const pctEl = document.getElementById('paper-pct-' + botId);
-      console.log('[refreshStockBalance] botId:', botId, 'el:', el, 'pctEl:', pctEl);
+    async function refreshStockBalance(systemId) {
+      const el = document.getElementById('paper-bal-' + systemId);
+      const pctEl = document.getElementById('paper-pct-' + systemId);
       if (!el) return;
       try {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/auto-bot?bot_id=${botId}`, {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/auto-bot?system_id=${systemId}`, {
           headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
         });
         const data = await res.json();
-        console.log('[refreshStockBalance] data:', data);
         if (data.total != null) {
           el.textContent = '$' + Number(data.total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           if (pctEl) {
@@ -446,12 +443,8 @@
             pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
             pctEl.style.color = pct >= 0 ? 'var(--accent)' : 'var(--red)';
           }
-        } else if (data.error) {
-          console.error('[refreshStockBalance] error:', data.error);
         }
-      } catch (err) {
-        console.error('[refreshStockBalance] fetch error:', err);
-      }
+      } catch (_) {}
     }
 
     async function loadOptionsBots() {
@@ -1242,6 +1235,71 @@
       await sbClient.auth.signOut();
       window.location.href = 'index.html';
     }
+
+    // Test functions to fire fake alerts for all bots
+    async function testAllStockBots() {
+      console.log('[Test] Firing fake alerts for all stock bots...');
+      const { data: bots } = await sbClient.from('stock_bots').select('*').eq('user_id', currentUserId);
+      if (!bots || bots.length === 0) { console.log('[Test] No stock bots found'); return; }
+      
+      for (const bot of bots) {
+        const symbol = bot.bot_symbol || 'SPY';
+        console.log(`[Test] Stock bot ${bot.name} (${bot.id.slice(0,8)}) - ${symbol}`);
+        
+        try {
+          const res = await fetch(`${SUPABASE_URL}/functions/v1/auto-bot`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+            body: JSON.stringify({ bot_id: bot.id, user_id: currentUserId })
+          });
+          const result = await res.json();
+          console.log(`[Test] Stock bot ${bot.name}:`, result);
+        } catch (err) {
+          console.error(`[Test] Stock bot ${bot.name} failed:`, err);
+        }
+        
+        // Small delay between bots
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      console.log('[Test] All stock bot tests complete');
+    }
+
+    async function testAllOptionsBots() {
+      console.log('[Test] Firing fake alerts for all options bots...');
+      const { data: bots } = await sbClient.from('options_bots').select('*').eq('user_id', currentUserId);
+      if (!bots || bots.length === 0) { console.log('[Test] No options bots found'); return; }
+      
+      for (const bot of bots) {
+        const symbol = bot.bot_symbol || 'SPY';
+        console.log(`[Test] Options bot ${bot.name} (${bot.id.slice(0,8)}) - ${symbol}`);
+        
+        try {
+          const res = await fetch(`${SUPABASE_URL}/functions/v1/options-bot`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+            body: JSON.stringify({ bot_id: bot.id, user_id: currentUserId })
+          });
+          const result = await res.json();
+          console.log(`[Test] Options bot ${bot.name}:`, result);
+        } catch (err) {
+          console.error(`[Test] Options bot ${bot.name} failed:`, err);
+        }
+        
+        // Small delay between bots
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      console.log('[Test] All options bot tests complete');
+    }
+
+    async function testAllBots() {
+      await testAllStockBots();
+      await testAllOptionsBots();
+    }
+
+    // Expose test functions to console
+    window.testStockBots = testAllStockBots;
+    window.testOptionsBots = testAllOptionsBots;
+    window.testAllBots = testAllBots;
 
     init();
   </script>
