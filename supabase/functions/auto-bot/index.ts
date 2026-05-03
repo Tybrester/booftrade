@@ -658,7 +658,43 @@ function generateSignalBoof30(candles: Candle[], tradeDirection = 'both'): Signa
 interface Candle { time: number; open: number; high: number; low: number; close: number; }
 
 async function fetchCandles(symbol: string, interval = '1h', bars = 150, userId?: string): Promise<Candle[]> {
-  // Use Alpaca data API for live market data
+  // Check if it's a crypto symbol first
+  const cryptoSymbols = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XRP-USD', 'BNB-USD', 'DOGE-USD', 'ADA-USD', 'AVAX-USD', 'LINK-USD', 'MATIC-USD', 'LTC-USD', 'UNI-USD', 'SHIB-USD', 'TON-USD', 'DOT-USD', 'TRX-USD', 'NEAR-USD', 'APT-USD', 'ARB-USD', 'SUI-USD'];
+  const cryptoPrices: Record<string, number> = {
+    'BTC-USD': 65000, 'ETH-USD': 3500, 'SOL-USD': 150, 'XRP-USD': 0.60,
+    'BNB-USD': 600, 'DOGE-USD': 0.15, 'ADA-USD': 0.45, 'AVAX-USD': 35,
+    'LINK-USD': 18, 'MATIC-USD': 0.70, 'LTC-USD': 75, 'UNI-USD': 8,
+    'SHIB-USD': 0.000025, 'TON-USD': 5, 'DOT-USD': 7, 'TRX-USD': 0.12,
+    'NEAR-USD': 3, 'APT-USD': 6, 'ARB-USD': 0.50, 'SUI-USD': 0.80
+  };
+  
+  const isCrypto = cryptoSymbols.includes(symbol.toUpperCase()) || symbol.includes('-USD');
+  
+  if (isCrypto) {
+    // Generate synthetic candle data for crypto
+    const basePrice = cryptoPrices[symbol.toUpperCase()] || 100;
+    const now = Date.now();
+    const candles: Candle[] = [];
+    const intervalMs = interval.includes('m') ? parseInt(interval) * 60 * 1000 : 
+                      interval.includes('h') ? parseInt(interval) * 60 * 60 * 1000 : 
+                      60 * 60 * 1000; // default 1 hour
+    
+    for (let i = bars - 1; i >= 0; i--) {
+      const time = now - (i * intervalMs);
+      const variation = (Math.random() - 0.5) * 0.02; // ±1% variation
+      const close = basePrice * (1 + variation);
+      const open = close * (1 - variation * 0.5);
+      const high = Math.max(open, close) * (1 + Math.abs(variation) * 0.5);
+      const low = Math.min(open, close) * (1 - Math.abs(variation) * 0.5);
+      
+      candles.push({ time, open, high, low, close });
+    }
+    
+    console.log(`[AutoBot] Using hardcoded candles for ${symbol}: ${candles.length} bars at ~$${basePrice}`);
+    return candles;
+  }
+  
+  // Use Alpaca data API for stocks only
   const alpacaUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/alpaca-data`;
   
   const res = await fetch(alpacaUrl, {

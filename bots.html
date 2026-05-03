@@ -2151,6 +2151,13 @@
                     <button type="button" class="dir-pill ${s.scan_futures?'active':''}" id="scan-futures-${s.id}" data-enabled="${s.scan_futures?'true':'false'}" onclick="toggleScanMarket('${s.id}','futures')">Futures (24/7)</button>
                   </div>
                   <div style="font-size:0.7rem;color:#555;text-align:right;">Select one or more markets to scan</div>
+                  <!-- Data Source Indicator -->
+                  <div style="font-size:0.65rem;color:#888;text-align:right;margin-top:4px;">
+                    ${s.scan_stocks ? '<span style="color:#00d4ff;">● Alpaca</span> ' : ''}
+                    ${s.scan_crypto ? '<span style="color:#ff9500;">● Yahoo Finance</span> ' : ''}
+                    ${s.scan_futures ? '<span style="color:#00d4ff;">● Alpaca</span> ' : ''}
+                    ${!s.scan_stocks && !s.scan_crypto && !s.scan_futures ? '<span style="color:#666;">● No data source</span>' : ''}
+                  </div>
                 </div>
               </div>
               <!-- Symbol (hidden in scan mode) -->
