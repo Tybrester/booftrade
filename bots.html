@@ -1918,8 +1918,7 @@
           status: 'closed',
           closed_at: new Date().toISOString(),
           exit_price: currentPrice,
-          pnl: pnl,
-          close_reason: 'manual'
+          pnl: pnl
         }).eq('id', tradeId);
         
         if (updateError) {
