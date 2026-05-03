@@ -1836,9 +1836,17 @@
       try {
         console.log(`[CloseTrade] Closing ${botType} trade ${tradeId}`);
         
-        // Get current live price
-        const livePrices = await fetchLivePrices([symbol]);
-        const currentPrice = livePrices[symbol] || 0;
+        // Get current live price via edge function
+        let currentPrice = 0;
+        try {
+          const { data: session } = await sbClient.auth.getSession();
+          const token = session?.access_token;
+          const res = await fetch(`${SUPABASE_URL}/functions/v1/alpaca-data?symbol=${symbol}`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+          });
+          const json = await res.json();
+          currentPrice = json?.price || 0;
+        } catch (_) {}
         
         if (!currentPrice) {
           alert('Could not get current price. Try again in a moment.');
