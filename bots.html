@@ -683,10 +683,20 @@
         
         // Get realized P&L from closed trades
         const { data: closedTrades } = await sbClient.from('trades')
-          .select('pnl')
+          .select('pnl, entry_price, exit_price, price, quantity, action')
           .eq('bot_id', systemId)
           .eq('status', 'closed');
-        const realizedPnl = (closedTrades || []).reduce((sum, t) => sum + (Number(t.pnl) || 0), 0);
+        const realizedPnl = (closedTrades || []).reduce((sum, t) => {
+          let pnl = Number(t.pnl) || 0;
+          // Calculate P&L from entry/exit if pnl is null or 0
+          if (!pnl && t.entry_price && t.exit_price) {
+            const ep = Number(t.entry_price);
+            const xp = Number(t.exit_price);
+            const qty = Number(t.quantity);
+            pnl = t.action === 'buy' ? (xp - ep) * qty : (ep - xp) * qty;
+          }
+          return sum + pnl;
+        }, 0);
         
         // Get open positions and calculate unrealized P&L with live prices
         const { data: openTrades } = await sbClient.from('trades')
@@ -729,6 +739,30 @@
           const pct = (totalReturn / startBalance) * 100;
           pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
           pctEl.style.color = pct >= 0 ? 'var(--accent)' : 'var(--red)';
+        }
+        
+        // Populate P&L stats row
+        const statsEl = document.getElementById('pnl-stats-' + systemId);
+        if (statsEl) {
+          const totalClosed = (closedTrades || []).length;
+          const openCount = (openTrades || []).length;
+          const wins = (closedTrades || []).filter(t => {
+            let pnl = Number(t.pnl) || 0;
+            if (!pnl && t.entry_price && t.exit_price) {
+              const ep = Number(t.entry_price), xp = Number(t.exit_price), qty = Number(t.quantity);
+              pnl = t.action === 'buy' ? (xp - ep) * qty : (ep - xp) * qty;
+            }
+            return pnl > 0;
+          }).length;
+          const winRate = totalClosed > 0 ? ((wins / totalClosed) * 100).toFixed(0) : '0';
+          const rColor = realizedPnl >= 0 ? 'var(--accent)' : 'var(--red)';
+          const uColor = unrealizedPnl >= 0 ? 'var(--accent)' : 'var(--red)';
+          statsEl.innerHTML = `
+            <div><span style="color:#666;">Realized</span> <strong style="color:${rColor};">${realizedPnl >= 0 ? '+' : ''}$${realizedPnl.toFixed(2)}</strong></div>
+            <div><span style="color:#666;">Unrealized</span> <strong style="color:${uColor};">${unrealizedPnl >= 0 ? '+' : ''}$${unrealizedPnl.toFixed(2)}</strong></div>
+            <div><span style="color:#666;">Trades</span> <strong style="color:#e0e0e0;">${totalClosed} closed · ${openCount} open</strong></div>
+            <div><span style="color:#666;">Win Rate</span> <strong style="color:${Number(winRate) >= 50 ? 'var(--accent)' : 'var(--red)'};">${winRate}%</strong></div>
+          `;
         }
       } catch (_) {}
     }
@@ -2221,6 +2255,7 @@
                 <div class="paper-balance-value" id="paper-bal-${s.id}">$${paperBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 <span id="paper-pct-${s.id}" style="font-size:0.82rem;font-weight:700;"></span>
               </div>
+              <div id="pnl-stats-${s.id}" style="display:flex;gap:16px;margin-top:8px;font-size:0.75rem;"></div>
             </div>
             <button class="reset-btn" onclick="resetPaperBalance('${s.id}')">Reset to $100k</button>
           </div>
