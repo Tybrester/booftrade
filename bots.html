@@ -596,15 +596,9 @@
   <script>
     const SUPABASE_URL = 'https://isanhutzyctcjygjhzbn.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzYW5odXR6eWN0Y2p5Z2poemJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTYzNDYsImV4cCI6MjA5MTY5MjM0Nn0.L0ATp-IriR708C2n3as_YXDgjHvtn_CWubbzPeSxRi0';
-    const WEBHOOK_BASE = `${SUPABASE_URL}/functions/v1/trade-webhook`;
     const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let currentUserId = null;
-    let optionsBotEditId = null;
-
-    function buildWebhookUrl(userId, systemId) {
-      return `${WEBHOOK_BASE}?user_id=${userId}&system_id=${systemId}`;
-    }
 
     async function toggleSystemField(id, field, value) {
       await sbClient.from('stock_bots').update({ [field]: value }).eq('id', id);
@@ -1045,28 +1039,6 @@
     function toggleOptScanMode(botId, mode) {
       const symRow = document.getElementById('osym-row-' + botId);
       if (symRow) symRow.style.display = mode === 'single' ? '' : 'none';
-    }
-
-    function setStrikeMode(botId, mode) {
-      ['budget','manual'].forEach(m => {
-        const btn = document.getElementById(`osm-${m}-${botId}`);
-        if (btn) btn.classList.toggle('active', m === mode);
-      });
-      const budgetRow = document.getElementById('ostrike-budget-row-' + botId);
-      const manualRow = document.getElementById('ostrike-manual-row-' + botId);
-      if (budgetRow) budgetRow.style.display = mode === 'manual' ? 'none' : '';
-      if (manualRow) manualRow.style.display = mode === 'manual' ? '' : 'none';
-    }
-
-    function setOrderMode(botId, mode) {
-      ['budget','qty'].forEach(m => {
-        const btn = document.getElementById(`oom-${m}-${botId}`);
-        if (btn) btn.classList.toggle('active', m === mode);
-      });
-      const budgetRow = document.getElementById('obudget-row-' + botId);
-      const qtyRow = document.getElementById('oqty-row-' + botId);
-      if (budgetRow) budgetRow.style.display = mode === 'qty' ? 'none' : '';
-      if (qtyRow) qtyRow.style.display = mode === 'qty' ? '' : 'none';
     }
 
     function setOptionsExpiry(botId, type) {
@@ -2579,54 +2551,6 @@
       btn.dataset.enabled = isActive ? 'true' : 'false';
     }
 
-    function setScanMode(systemId, mode) {
-      const input = document.getElementById('scanmode-' + systemId);
-      let currentModes = input.value.split(',').filter(v => v);
-      
-      if (mode === 'single') {
-        // Single mode clears others
-        currentModes = ['single'];
-      } else if (mode === 'scan_all') {
-        // All Markets is exclusive - clears all others
-        if (currentModes.includes('scan_all')) {
-          currentModes = ['single']; // Toggle off
-        } else {
-          currentModes = ['scan_all']; // Select only All Markets
-        }
-      } else {
-        // Remove single and scan_all if selecting other scan modes
-        currentModes = currentModes.filter(m => m !== 'single' && m !== 'scan_all');
-        // Toggle the selected mode
-        if (currentModes.includes(mode)) {
-          currentModes = currentModes.filter(m => m !== mode);
-        } else {
-          currentModes.push(mode);
-        }
-        // Default to single if nothing selected
-        if (currentModes.length === 0) currentModes = ['single'];
-      }
-      
-      input.value = currentModes.join(',');
-      
-      // Update button visuals
-      ['single','scan_stocks','scan_crypto','scan_all','scan_futures'].forEach(m => {
-        const btn = document.getElementById('scan-' + m + '-' + systemId);
-        if (btn) btn.classList.toggle('active', currentModes.includes(m));
-      });
-      
-      // Show/hide symbol row
-      const symRow = document.getElementById('sym-row-' + systemId);
-      if (symRow) symRow.style.display = currentModes.includes('single') ? 'flex' : 'none';
-      
-      // Update hint
-      const hints = { single: 'Uses the symbol below', scan_stocks: '50 top US stocks', scan_crypto: '20 top crypto', scan_all: '50 stocks + 20 crypto + 20 futures', scan_futures: '20 top futures (overnight)' };
-      const hint = document.getElementById('scan-hint-' + systemId);
-      if (hint) {
-        const hintTexts = currentModes.map(m => hints[m]).filter(Boolean);
-        hint.textContent = hintTexts.join(' + ');
-      }
-    }
-
     function setBotDir(systemId, direction) {
       document.getElementById('dir-' + systemId).value = direction;
       ['both', 'long', 'short'].forEach(d => {
@@ -2956,267 +2880,6 @@
       }
     }
 
-    // Test function: Simulate stock bot signal and verify options bot reaction
-    async function testBotSync(stockBotId) {
-      console.log('🧪 [TEST] Starting bot sync test...');
-      
-      try {
-        // 1. Get stock bot details
-        const { data: stockBot, error: stockError } = await sbClient
-          .from('stock_bots')
-          .select('*')
-          .eq('id', stockBotId)
-          .single();
-        
-        if (stockError || !stockBot) {
-          console.error('❌ [TEST] Stock bot not found:', stockError);
-          return;
-        }
-        
-        console.log('✅ [TEST] Stock bot found:', stockBot.name, '| Interval:', stockBot.bot_interval);
-        
-        // 2. Find paired options bot
-        const optionsBotName = stockBot.name + ' Options';
-        const { data: optionsBot, error: optError } = await sbClient
-          .from('options_bots')
-          .select('*')
-          .eq('user_id', currentUserId)
-          .eq('name', optionsBotName)
-          .maybeSingle();
-        
-        if (optError || !optionsBot) {
-          console.error('❌ [TEST] Paired options bot not found. Expected name:', optionsBotName);
-          return;
-        }
-        
-        console.log('✅ [TEST] Paired options bot found:', optionsBot.name);
-        console.log('   - Stock interval:', stockBot.bot_interval, '| Options interval:', optionsBot.bot_interval);
-        console.log('   - Stock signal:', stockBot.bot_signal, '| Options signal:', optionsBot.bot_signal);
-        console.log('   - Stock broker:', stockBot.broker, '| Options broker:', optionsBot.broker);
-        console.log('   - Options expiry:', optionsBot.bot_expiry_type);
-        console.log('   - Stock auto_submit:', stockBot.auto_submit, '| Options auto_submit:', optionsBot.auto_submit);
-        
-        // Enable auto_submit on options bot if not enabled
-        if (!optionsBot.auto_submit) {
-          console.log('🔧 [TEST] Enabling auto_submit on options bot...');
-          await sbClient.from('options_bots').update({ auto_submit: true }).eq('id', optionsBot.id);
-        }
-        
-        // Ensure options bot has SPY as symbol
-        if (!optionsBot.bot_symbol || optionsBot.bot_symbol !== 'SPY') {
-          console.log('🔧 [TEST] Setting options bot symbol to SPY...');
-          await sbClient.from('options_bots').update({ 
-            bot_symbol: 'SPY'
-          }).eq('id', optionsBot.id);
-        }
-        
-        // Reset last_run_at to bypass run_interval_min check
-        console.log('🔧 [TEST] Resetting last_run_at to allow immediate execution...');
-        await sbClient.from('options_bots').update({ 
-          last_run_at: null
-        }).eq('id', optionsBot.id);
-        
-        // 3. Check if intervals match (required for sync)
-        if (stockBot.bot_interval !== optionsBot.bot_interval) {
-          console.warn('⚠️ [TEST] INTERVAL MISMATCH! Stock:', stockBot.bot_interval, 'Options:', optionsBot.bot_interval);
-          console.warn('   Options bot will NOT trigger unless intervals match!');
-        } else {
-          console.log('✅ [TEST] Intervals match - sync will work!');
-        }
-        
-        // 4. Simulate a manual trigger (insert a test trade)
-        console.log('🚀 [TEST] Simulating stock trade trigger...');
-        const testPrice = 450.00;
-        const testSignal = 'buy';
-        
-        // Insert a test stock trade
-        const { data: trade, error: tradeError } = await sbClient
-          .from('stock_trades')
-          .insert({
-            bot_id: stockBotId,
-            user_id: currentUserId,
-            symbol: stockBot.bot_symbol || 'SPY',
-            action: testSignal,
-            price: testPrice,
-            quantity: 1,
-            status: 'filled',
-            broker: stockBot.broker || 'paper',
-            created_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-        
-        if (tradeError) {
-          console.error('❌ [TEST] Failed to create test trade:', tradeError);
-          return;
-        }
-        
-        console.log('✅ [TEST] Test trade created:', trade.id);
-        console.log('   Symbol:', trade.symbol, '| Signal:', trade.action, '| Price:', trade.price);
-        
-        // 5. Manually invoke auto-bot to process the trade and trigger options
-        console.log('🚀 [TEST] Invoking auto-bot Edge Function...');
-        try {
-          const autoBotUrl = `${SUPABASE_URL}/functions/v1/auto-bot`;
-          const res = await fetch(autoBotUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-            },
-            body: JSON.stringify({
-              user_id: currentUserId,
-              test_mode: true,
-              bot_id: stockBotId
-            })
-          });
-          if (res.ok) {
-            console.log('✅ [TEST] Auto-bot invoked successfully');
-          } else {
-            console.warn('⚠️ [TEST] Auto-bot invoke failed:', res.status, await res.text());
-          }
-        } catch (err) {
-          console.warn('⚠️ [TEST] Could not invoke auto-bot:', err.message);
-        }
-        
-        // 5b. Verify options bot in DB before triggering
-        console.log('🔍 [TEST] Verifying options bot in database...');
-        const { data: verifyBot, error: verifyError } = await sbClient
-          .from('options_bots')
-          .select('*')
-          .eq('id', optionsBot.id)
-          .eq('enabled', true)
-          .eq('auto_submit', true)
-          .maybeSingle();
-        
-        if (verifyError || !verifyBot) {
-          console.error('❌ [TEST] Options bot not found in DB with enabled=true + auto_submit=true');
-          console.error('   DB Error:', verifyError);
-          console.log('   Trying without filters...');
-          const { data: rawBot } = await sbClient.from('options_bots').select('*').eq('id', optionsBot.id).maybeSingle();
-          console.log('   Raw bot from DB:', rawBot);
-        } else {
-          console.log('✅ [TEST] Options bot verified in DB:', verifyBot.name);
-        }
-        
-        // Directly trigger options-bot with sync signal
-        console.log('🚀 [TEST] Directly triggering options-bot...');
-        let result = null;
-        try {
-          const optionsBotUrl = `${SUPABASE_URL}/functions/v1/options-bot`;
-          const res = await fetch(optionsBotUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-            },
-            body: JSON.stringify({
-              user_id: currentUserId,
-              bot_id: optionsBot.id,
-              symbol: stockBot.bot_symbol || 'SPY',
-              signal: 'buy',
-              trigger_source: 'auto-bot-sync',
-              price: testPrice,
-              stock_trade_id: trade.id,
-              stock_trade_status: 'filled',
-              test_mode: true
-            })
-          });
-          if (res.ok) {
-            result = await res.json();
-            console.log('✅ [TEST] Options-bot triggered:', result);
-        console.log('🔍 [TEST] Results array:', JSON.stringify(result.results, null, 2));
-        if (result.processed === 0) {
-          console.log('🔍 [TEST] Debug - Options bot ID:', optionsBot.id);
-          console.log('🔍 [TEST] Debug - Options bot enabled:', optionsBot.enabled);
-          console.log('🔍 [TEST] Debug - Options bot auto_submit:', optionsBot.auto_submit);
-          console.log('🔍 [TEST] Debug - Options bot user_id:', optionsBot.user_id);
-          console.log('🔍 [TEST] Debug - Current User ID:', currentUserId);
-          console.log('🔍 [TEST] Debug - Match:', optionsBot.user_id === currentUserId ? 'YES' : 'NO');
-          console.log('🔍 [TEST] Debug - Edge Function results:', result.results);
-          
-          // Check if any trade succeeded in results (status can be 'success', 'open', or have option_order_id)
-          const successfulTrade = result.results?.find(r => 
-            r.status === 'success' || 
-            r.status === 'open' || 
-            r.option_order_id ||
-            r.bot_id
-          );
-          
-          console.log('\n📝 [TEST] Summary:');
-          console.log('   Stock bot:', stockBot.name, '(', stockBot.enabled ? 'ON' : 'OFF', '/', stockBot.auto_submit ? 'AUTO' : 'MANUAL', ')');
-          console.log('   Options bot:', optionsBot.name, '(', optionsBot.enabled ? 'ON' : 'OFF', '/', optionsBot.auto_submit ? 'AUTO' : 'MANUAL', ')');
-          console.log('   Options processed:', result.processed);
-          console.log('   Sync working:', successfulTrade ? 'YES ✅ - Sync is working!' : 'NO ❌');
-          console.log('   Trade status:', successfulTrade?.status || 'none');
-          if (successfulTrade) {
-            console.log('   Trade details:', successfulTrade.symbol, successfulTrade.option_type, '@', successfulTrade.strike, '| Cost:', successfulTrade.total_cost);
-          }
-        }
-          } else {
-            console.warn('⚠️ [TEST] Options-bot trigger failed:', res.status, await res.text());
-          }
-        } catch (err) {
-          console.warn('⚠️ [TEST] Could not trigger options-bot:', err.message);
-        }
-        
-        // 6. Wait for options bot to process
-        console.log('⏳ [TEST] Waiting 3 seconds for options bot to execute...');
-        await new Promise(r => setTimeout(r, 3000));
-        
-        // 6b. Check options_trades table directly
-        console.log('🔍 [TEST] Checking options_trades table directly...');
-        const { data: directTrades } = await sbClient
-          .from('options_trades')
-          .select('*')
-          .eq('bot_id', optionsBot.id)
-          .gte('created_at', new Date(Date.now() - 60000).toISOString())
-          .order('created_at', { ascending: false });
-        console.log('🔍 [TEST] Recent options trades found:', directTrades?.length || 0);
-        if (directTrades && directTrades.length > 0) {
-          console.log('✅ [TEST] SUCCESS! Options trade created:', directTrades[0]);
-        }
-        
-        // 6. Check for options trades
-        const { data: optionsTrades, error: optTradeError } = await sbClient
-          .from('options_trades')
-          .select('*')
-          .eq('bot_id', optionsBot.id)
-          .gte('created_at', new Date(Date.now() - 10000).toISOString())
-          .order('created_at', { ascending: false });
-        
-        if (optTradeError) {
-          console.error('❌ [TEST] Error checking options trades:', optTradeError);
-          return;
-        }
-        
-        if (optionsTrades && optionsTrades.length > 0) {
-          console.log('✅ [TEST] SUCCESS! Options bot reacted to stock signal!');
-          console.log('   Options trade:', optionsTrades[0].symbol, optionsTrades[0].option_type, '@', optionsTrades[0].strike);
-        } else {
-          console.log('⚠️ [TEST] No options trade found in table yet');
-        }
-        
-        // Final success check - if we got a result from Edge Function, sync is working!
-        if (result && result.processed > 0 && result.results && result.results.length > 0) {
-          const trade = result.results[0];
-          console.log('\n🎉 [TEST] SUCCESS! BOT SYNC IS WORKING! 🎉');
-          console.log('   Stock signal: BUY SPY @ $450');
-          console.log('   Options response:', trade.option_type, 'option @ strike', trade.strike);
-          console.log('   Trade cost:', trade.total_cost, '| Budget:', trade.budget);
-          console.log('   Status:', trade.status);
-          console.log('\n✅ Your stock bot and options bot are properly synchronized!');
-        }
-        
-        // Cleanup: Delete test trade
-        await sbClient.from('stock_trades').delete().eq('id', trade.id);
-        console.log('🧹 [TEST] Cleaned up test trade');
-        
-      } catch (err) {
-        console.error('💥 [TEST] Unexpected error:', err);
-      }
-    }
-
     function actTimeStr(d) {
       const dt = new Date(d);
       return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -3333,7 +2996,6 @@
           }
         }
         
-        const realizedPnl = closedT.reduce((s, x) => s + Number(x.pnl), 0);
         const unrealizedPct = openPositionsCost > 0 ? (unrealizedPnl / openPositionsCost) * 100 : 0;
         
         // Only show Unrealized P&L in stats
@@ -3410,7 +3072,6 @@
           }
         }
         
-        const realizedPnl = closedT.reduce((s, x) => s + Number(x.pnl), 0);
         const unrealizedPct = openPositionsCost > 0 ? (unrealizedPnl / openPositionsCost) * 100 : 0;
         
         // Only show Unrealized P&L in stats
@@ -3477,73 +3138,6 @@
       await sbClient.auth.signOut();
       window.location.href = 'index.html';
     }
-
-    // Test functions to fire fake alerts for all bots
-    async function testAllStockBots() {
-      console.log('[Test] Firing fake alerts for all stock bots...');
-      const { data: bots } = await sbClient.from('stock_bots').select('*').eq('user_id', currentUserId);
-      if (!bots || bots.length === 0) { console.log('[Test] No stock bots found'); return; }
-      
-      for (const bot of bots) {
-        const symbol = bot.bot_symbol || 'SPY';
-        console.log(`[Test] Stock bot ${bot.name} (${bot.id.slice(0,8)}) - ${symbol}`);
-        
-        try {
-          const res = await fetch(`${SUPABASE_URL}/functions/v1/auto-bot`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-            body: JSON.stringify({ bot_id: bot.id, user_id: currentUserId })
-          });
-          const result = await res.json();
-          console.log(`[Test] Stock bot ${bot.name}:`, result);
-        } catch (err) {
-          console.error(`[Test] Stock bot ${bot.name} failed:`, err);
-        }
-        
-        // Small delay between bots
-        await new Promise(r => setTimeout(r, 1000));
-      }
-      console.log('[Test] All stock bot tests complete');
-    }
-
-    async function testAllOptionsBots() {
-      console.log('[Test] Firing fake alerts for all options bots...');
-      const { data: bots } = await sbClient.from('options_bots').select('*').eq('user_id', currentUserId);
-      if (!bots || bots.length === 0) { console.log('[Test] No options bots found'); return; }
-      
-      for (const bot of bots) {
-        const symbol = bot.bot_symbol || 'SPY';
-        console.log(`[Test] Options bot ${bot.name} (${bot.id.slice(0,8)}) - ${symbol}`);
-        
-        try {
-          const res = await fetch(`${SUPABASE_URL}/functions/v1/options-bot`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-            body: JSON.stringify({ bot_id: bot.id, user_id: currentUserId })
-          });
-          const result = await res.json();
-          console.log(`[Test] Options bot ${bot.name}:`, result);
-        } catch (err) {
-          console.error(`[Test] Options bot ${bot.name} failed:`, err);
-        }
-        
-        // Small delay between bots
-        await new Promise(r => setTimeout(r, 1000));
-      }
-      console.log('[Test] All options bot tests complete');
-    }
-
-    async function testAllBots() {
-      await testAllStockBots();
-      await testAllOptionsBots();
-    }
-
-    // Expose test functions to console
-    window.testStockBots = testAllStockBots;
-    window.testOptionsBots = testAllOptionsBots;
-    window.testAllBots = testAllBots;
-    window.testBotSync = testBotSync;
-    console.log('🧪 Test function loaded! Run: testBotSync("YOUR_STOCK_BOT_ID")');
 
     init();
   </script>
