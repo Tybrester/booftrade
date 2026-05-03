@@ -1289,16 +1289,46 @@ Deno.serve(async (req) => {
           .order('created_at', { ascending: false }).limit(1).maybeSingle();
 
         if (openTrade) {
-          if (openTrade.action === signal) {
-            // Same direction already open - skip
-            return { bot_id: bot.id, symbol: sym, status: 'skipped', reason: `Already in ${signal} position` };
-          }
-          // Opposite signal - close the open trade with P&L
           const entryPrice = Number(openTrade.entry_price || openTrade.price);
           const qty = Number(openTrade.quantity);
           const pnl = openTrade.action === 'buy'
             ? (price - entryPrice) * qty
             : (entryPrice - price) * qty;
+          const pnlPct = entryPrice > 0 ? ((openTrade.action === 'buy' ? (price - entryPrice) : (entryPrice - price)) / entryPrice) * 100 : 0;
+          
+          // Check Take Profit / Stop Loss thresholds
+          const tpPct = Number(bot.take_profit_pct) || 0;
+          const slPct = Number(bot.stop_loss_pct) || 0;
+          
+          if (tpPct > 0 && pnlPct >= tpPct) {
+            // Take profit hit
+            await supabase.from('trades').update({
+              status: 'closed',
+              exit_price: price,
+              pnl: pnl,
+              closed_at: new Date().toISOString(),
+            }).eq('id', openTrade.id);
+            console.log(`[AutoBot] TP HIT ${sym} | +${pnlPct.toFixed(2)}% >= ${tpPct}% | P&L: $${pnl.toFixed(2)}`);
+            return { bot_id: bot.id, symbol: sym, status: 'tp_closed', reason: `Take Profit ${tpPct}% hit (${pnlPct.toFixed(2)}%)`, pnl };
+          }
+          
+          if (slPct > 0 && pnlPct <= -slPct) {
+            // Stop loss hit
+            await supabase.from('trades').update({
+              status: 'closed',
+              exit_price: price,
+              pnl: pnl,
+              closed_at: new Date().toISOString(),
+            }).eq('id', openTrade.id);
+            console.log(`[AutoBot] SL HIT ${sym} | ${pnlPct.toFixed(2)}% <= -${slPct}% | P&L: $${pnl.toFixed(2)}`);
+            return { bot_id: bot.id, symbol: sym, status: 'sl_closed', reason: `Stop Loss ${slPct}% hit (${pnlPct.toFixed(2)}%)`, pnl };
+          }
+          
+          if (openTrade.action === signal) {
+            // Same direction already open - skip
+            return { bot_id: bot.id, symbol: sym, status: 'skipped', reason: `Already in ${signal} position (${pnlPct.toFixed(2)}%)` };
+          }
+          // Opposite signal - close the open trade with P&L
           await supabase.from('trades').update({
             status: 'closed',
             exit_price: price,
