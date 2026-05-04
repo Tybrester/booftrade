@@ -949,16 +949,6 @@
               </div>
               <div id="osym-row-${b.id}" style="${b.bot_scan_mode&&b.bot_scan_mode!=='single'?'display:none':''}"><div class="auto-settings-row"><span>Symbol</span><input class="auto-input" id="osym-${b.id}" value="${b.bot_symbol||'SPY'}" placeholder="SPY"/></div></div>
               <div class="auto-settings-row"><span>$ Per Trade</span><input class="auto-input" id="odol-${b.id}" type="number" value="${b.bot_dollar_amount||500}" min="100"/></div>
-              <div class="auto-settings-row"><span>Contracts (optional)</span><input class="auto-input" id="oqty-${b.id}" type="number" value="${b.bot_quantity||''}" placeholder="Auto from budget" min="1"/></div>
-              <div class="auto-settings-row"><span>OTM Strikes</span>
-                <select class="auto-input" id="ootm-${b.id}" title="How far OTM (Out of The Money) to buy options - higher = cheaper">
-                  <option value="0" ${b.bot_otm_strikes===0?'selected':''}>ATM (At The Money)</option>
-                  <option value="1" ${(!b.bot_otm_strikes||b.bot_otm_strikes===1)?'selected':''}>1 Strike OTM</option>
-                  <option value="2" ${b.bot_otm_strikes===2?'selected':''}>2 Strikes OTM (Cheaper)</option>
-                  <option value="3" ${b.bot_otm_strikes===3?'selected':''}>3 Strikes OTM (Much Cheaper)</option>
-                  <option value="5" ${b.bot_otm_strikes===5?'selected':''}>5 Strikes OTM (Very Cheap)</option>
-                </select>
-              </div>
               <div class="auto-settings-row"><span>Option Type</span>
                 <select class="auto-input" id="otype-${b.id}" title="Trade CALLS only, PUTS only, or BOTH based on signal">
                   <option value="both" ${(!b.bot_option_type||b.bot_option_type==='both')?'selected':''}>Both (Follow Signal)</option>
@@ -1010,6 +1000,7 @@
               <div id="obrk-warn-${b.id}" style="font-size:0.72rem;color:#ff7043;display:${b.broker==='tastytrade'||b.broker==='alpaca'?'flex':'none'};align-items:center;gap:6px;background:rgba(255,112,67,0.08);border:1px solid rgba(255,112,67,0.2);border-radius:6px;padding:8px 10px;">
                 <span>Live options trading — real orders will be placed on ${b.broker==='alpaca'?'Alpaca':'Tastytrade'}</span>
               </div>
+              <button onclick="saveOptionsSettings('${b.id}')" style="margin-top:10px;width:100%;padding:8px;background:linear-gradient(135deg,#00d4ff,#00ff88);color:#000;font-weight:600;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.85rem;">Save Settings</button>
               <div class="run-result" id="opt-run-result-${b.id}"></div>
             </div>
             </div>
@@ -1058,8 +1049,6 @@
     async function saveOptionsSettings(botId) {
       const sym = document.getElementById('osym-' + botId)?.value?.toUpperCase().trim();
       const dol = parseFloat(document.getElementById('odol-' + botId)?.value) || 500;
-      const qtyInput = document.getElementById('oqty-' + botId)?.value;
-      const qty = qtyInput ? parseInt(qtyInput) || null : null;
       const int = document.getElementById('oint-' + botId)?.value;
       const runInt = parseInt(document.getElementById('orunint-' + botId)?.value) || 1;
       const expiry = ['0dte','weekly','monthly'].find(t => document.getElementById(`oexp-${t}-${botId}`)?.classList.contains('active')) || 'weekly';
@@ -1071,16 +1060,15 @@
       const sl = parseFloat(document.getElementById('osl-' + botId)?.value) || -20;
       const broker = document.getElementById('obrk-' + botId)?.value || 'paper';
       const botSignal = document.getElementById('osig-' + botId)?.value || 'supertrend';
-      const otm = parseInt(document.getElementById('ootm-' + botId)?.value) || 1;
       const optionType = document.getElementById('otype-' + botId)?.value || 'both';
-      console.log(`[SaveOptions] Bot ${botId}: sym=${sym}, $=${dol}, qty=${qty}, otm=${otm}, optionType=${optionType}, int=${int}, runInt=${runInt}min, dir=${dir}, signal=${botSignal}, scan=${scanMode}`);
+      console.log(`[SaveOptions] Bot ${botId}: sym=${sym}, $=${dol}, optionType=${optionType}, int=${int}, runInt=${runInt}min, dir=${dir}, signal=${botSignal}, scan=${scanMode}`);
       const brkWarn = document.getElementById('obrk-warn-' + botId);
       if (brkWarn) {
         brkWarn.style.display = (broker === 'tastytrade' || broker === 'alpaca') ? 'flex' : 'none';
         const span = brkWarn.querySelector('span');
         if (span) span.textContent = `Live options trading — real orders will be placed on ${broker === 'alpaca' ? 'Alpaca' : 'Tastytrade'}`;
       }
-      const { error } = await sbClient.from('options_bots').update({ bot_symbol: sym, bot_dollar_amount: dol, bot_quantity: qty, bot_otm_strikes: otm, bot_option_type: optionType, bot_interval: int, run_interval_min: runInt, bot_expiry_type: expiry, bot_trade_direction: dir, bot_strike_mode: strikeMode, bot_manual_strike: strikeMode === 'manual' ? manualStrike : null, bot_scan_mode: scanMode, take_profit_pct: tp, stop_loss_pct: sl, broker, bot_signal: botSignal, updated_at: new Date().toISOString() }).eq('id', botId);
+      const { error } = await sbClient.from('options_bots').update({ bot_symbol: sym, bot_dollar_amount: dol, bot_option_type: optionType, bot_interval: int, run_interval_min: runInt, bot_expiry_type: expiry, bot_trade_direction: dir, bot_strike_mode: strikeMode, bot_manual_strike: strikeMode === 'manual' ? manualStrike : null, bot_scan_mode: scanMode, take_profit_pct: tp, stop_loss_pct: sl, broker, bot_signal: botSignal, updated_at: new Date().toISOString() }).eq('id', botId);
       if (error) console.error('[SaveOptions] Error:', error);
       else console.log('[SaveOptions] Success');
       const r = document.getElementById('opt-run-result-' + botId);
@@ -2371,6 +2359,7 @@
               </div>
               <div class="auto-settings-row"><span>Take Profit %</span><input class="auto-input" id="tp-${s.id}" type="number" value="${s.take_profit_pct||50}" min="0.5" max="100" step="0.5" style="width:80px;" title="Close trade when profit hits this %"/></div>
               <div class="auto-settings-row"><span>Stop Loss %</span><input class="auto-input" id="sl-${s.id}" type="number" value="${s.stop_loss_pct||-20}" min="-50" max="0" step="0.5" style="width:80px;" title="Close trade when P&L drops to this % (e.g. -20)"/></div>
+              <button onclick="saveAutoSettings('${s.id}')" style="margin-top:10px;width:100%;padding:8px;background:linear-gradient(135deg,#00d4ff,#00ff88);color:#000;font-weight:600;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.85rem;">Save Settings</button>
               <div class="run-result" id="run-result-${s.id}"></div>
             </div>
             </div>

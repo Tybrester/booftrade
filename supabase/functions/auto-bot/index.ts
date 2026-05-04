@@ -652,16 +652,16 @@ function generateSignalBoof30(candles: Candle[], tradeDirection = 'both'): Signa
 }
 
 // ─────────────────────────────────────────────
-// FETCH CANDLES (Alpaca Data - Live)
+// FETCH CANDLES (Yahoo Finance - Live)
 // ─────────────────────────────────────────────
 
 interface Candle { time: number; open: number; high: number; low: number; close: number; }
 
 async function fetchCandles(symbol: string, interval = '1h', bars = 150, userId?: string): Promise<Candle[]> {
-  // Check if it's a crypto or futures symbol (both use Yahoo Finance)
+  // Use Yahoo Finance for all symbols (stocks, crypto, futures) - avoids Alpaca JWT issues
   const isCrypto = symbol.includes('-USD') || symbol.includes('/USD');
   const isFutures = symbol.includes('=F');
-  const useYahoo = isCrypto || isFutures;
+  const useYahoo = true; // Always use Yahoo Finance
   
   // Fix renamed/delisted Yahoo tickers
   const tickerFixMap: Record<string, string> = {
@@ -734,51 +734,8 @@ async function fetchCandles(symbol: string, interval = '1h', bars = 150, userId?
     }
   }
   
-  // Use Alpaca data API for stocks only
-  const alpacaUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/alpaca-data`;
-  
-  const res = await fetch(alpacaUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-    },
-    body: JSON.stringify({
-      user_id: userId || 'anonymous',
-      symbol: symbol,
-      interval: interval,
-      bars: bars,
-      type: 'candles'
-    })
-  });
-  
-  if (!res.ok) {
-    const error = await res.text();
-    console.error(`[AutoBot] Alpaca data error for ${symbol}: ${error}`);
-    throw new Error(`Alpaca data failed for ${symbol}: ${error}. Check your Alpaca credentials.`);
-  }
-  
-  const data = await res.json();
-  
-  if (!data.candles || data.candles.length < 10) {
-    throw new Error(`Insufficient Alpaca data for ${symbol} (got ${data.candles?.length || 0} bars)`);
-  }
-  
-  const candles: Candle[] = data.candles.map((c: any) => ({
-    time: c.time,
-    open: c.open,
-    high: c.high,
-    low: c.low,
-    close: c.close,
-  }));
-  
-  console.log(`[AutoBot] Fetched ${candles.length} candles for ${symbol} from Alpaca`);
-  
-  if (candles.length < 60) {
-    throw new Error(`Not enough data for ${symbol} (got ${candles.length} candles)`);
-  }
-  
-  return candles.slice(-bars);
+  // Note: All data now comes from Yahoo Finance (Alpaca code removed)
+  throw new Error(`Failed to fetch data for ${symbol} from Yahoo Finance`);
 }
 
 // ─────────────────────────────────────────────
