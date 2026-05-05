@@ -596,6 +596,62 @@
 
     let currentUserId = null;
 
+    // ─────────────────────────────────────────────
+    // FUTURES P&L CALCULATION (Real contract specs)
+    // ─────────────────────────────────────────────
+    function getFuturesTickValue(symbol) {
+      const specs = {
+        'ES=F': { tickSize: 0.25, tickValue: 12.50 },      // E-mini S&P 500
+        'NQ=F': { tickSize: 0.25, tickValue: 5.00 },       // E-mini NASDAQ
+        'YM=F': { tickSize: 1, tickValue: 5.00 },          // E-mini Dow
+        'RTY=F': { tickSize: 0.1, tickValue: 5.00 },       // E-mini Russell 2000
+        'CL=F': { tickSize: 0.01, tickValue: 10.00 },      // Crude Oil
+        'GC=F': { tickSize: 0.1, tickValue: 10.00 },        // Gold
+        'SI=F': { tickSize: 0.005, tickValue: 25.00 },     // Silver
+        'HG=F': { tickSize: 0.0005, tickValue: 12.50 },    // Copper
+        'NG=F': { tickSize: 0.001, tickValue: 10.00 },     // Natural Gas
+        'ZN=F': { tickSize: 0.015625, tickValue: 15.625 }, // 10-Year T-Note
+        'ZB=F': { tickSize: 0.03125, tickValue: 31.25 },   // 30-Year T-Bond
+        'ZF=F': { tickSize: 0.0078125, tickValue: 7.8125 },// 5-Year T-Note
+        '6E=F': { tickSize: 0.0001, tickValue: 12.50 },    // Euro FX
+        '6J=F': { tickSize: 0.000001, tickValue: 12.50 },  // Japanese Yen
+        '6B=F': { tickSize: 0.0001, tickValue: 6.25 },     // British Pound
+        '6C=F': { tickSize: 0.0001, tickValue: 10.00 },    // Canadian Dollar
+        '6A=F': { tickSize: 0.0001, tickValue: 10.00 },    // Australian Dollar
+        'ZW=F': { tickSize: 0.25, tickValue: 12.50 },      // Wheat
+        'ZC=F': { tickSize: 0.25, tickValue: 12.50 },      // Corn
+        'ZS=F': { tickSize: 0.25, tickValue: 12.50 },      // Soybeans
+        'ZL=F': { tickSize: 0.01, tickValue: 600.00 },     // Soybean Oil
+      };
+      return specs[symbol] || { tickSize: 0.01, tickValue: 1 }; // Default to stock-like
+    }
+
+    function calcFuturesPnL(symbol, entryPrice, exitPrice, qty, action) {
+      if (!symbol.includes('=F')) {
+        // Not a futures symbol - use stock calculation
+        return action === 'buy'
+          ? (exitPrice - entryPrice) * qty
+          : (entryPrice - exitPrice) * qty;
+      }
+
+      // Calculate point difference
+      const pointDiff = action === 'buy'
+        ? exitPrice - entryPrice
+        : entryPrice - exitPrice;
+
+      // Get contract specs
+      const { tickSize, tickValue } = getFuturesTickValue(symbol);
+
+      // Calculate P&L: (point difference / tick size) * tick value * quantity
+      const ticks = pointDiff / tickSize;
+      const pnl = ticks * tickValue * qty;
+
+      return pnl;
+    }
+
+    // Auto-refresh interval for real-time P&L updates
+    let pnlRefreshInterval = null;
+
     async function toggleSystemField(id, field, value) {
       await sbClient.from('stock_bots').update({ [field]: value }).eq('id', id);
     }
@@ -715,8 +771,9 @@
           if (livePrice) {
             const entryPrice = Number(trade.price);
             const qty = Number(trade.quantity);
-            const direction = trade.action === 'buy' ? 1 : -1;
-            unrealizedPnl += direction * (livePrice - entryPrice) * qty;
+            // Use realistic futures P&L calculation with contract specs
+            const tradePnl = calcFuturesPnL(trade.symbol, entryPrice, livePrice, qty, trade.action);
+            unrealizedPnl += tradePnl;
           }
         }
         
@@ -2337,6 +2394,27 @@
         if (s.broker !== 'tastytrade') refreshStockBalance(s.id);
         loadBotTrades(s.id);
       });
+
+      // Start auto-refresh for real-time P&L updates (every 5 seconds)
+      startPnlAutoRefresh();
+    }
+
+    // Start auto-refresh interval for P&L updates
+    function startPnlAutoRefresh() {
+      // Clear existing interval if any
+      if (pnlRefreshInterval) {
+        clearInterval(pnlRefreshInterval);
+      }
+      // Refresh every 5 seconds
+      pnlRefreshInterval = setInterval(() => {
+        // Refresh all stock bot balances
+        const stockBotIds = [...document.querySelectorAll('[id^="paper-bal-"]')].map(el => el.id.replace('paper-bal-', ''));
+        stockBotIds.forEach(id => refreshStockBalance(id));
+        // Refresh all options bot balances
+        const optBotIds = [...document.querySelectorAll('[id^="opt-paper-bal-"]')].map(el => el.id.replace('opt-paper-bal-', ''));
+        optBotIds.forEach(id => refreshOptBalance(id));
+      }, 5000);
+      console.log('[P&L] Auto-refresh started (every 5 seconds)');
     }
 
 
@@ -3039,6 +3117,13 @@
       await sbClient.auth.signOut();
       window.location.href = 'index.html';
     }
+
+    // Clean up auto-refresh interval when leaving page
+    window.addEventListener('beforeunload', () => {
+      if (pnlRefreshInterval) {
+        clearInterval(pnlRefreshInterval);
+      }
+    });
 
     init();
   </script>
