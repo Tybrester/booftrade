@@ -351,7 +351,7 @@ function generateSignalBoof80(candles: any[], tradeDirection = 'both', context: 
   if (!regime.shouldTrade)           return noResult(`Boof 8.0: skipping — ${regime.noTradeReason}`);
   const ci = calcChoppinessIndex80(highs, lows, closes, 14);
   const marketState = ci > 62 ? 'CHOPPY' : ci < 38 ? 'TRENDING' : 'MIXED';
-  if (ci > 72 && regime.type !== 'EXPLOSIVE') return noResult(`Boof 8.0: too choppy CI=${ci.toFixed(1)}`);
+  if (ci > 61.8 && regime.type !== 'EXPLOSIVE') return noResult(`Boof 8.0: too choppy CI=${ci.toFixed(1)}`);
   const { signal, reason } = runRegimeStrategy80(regime, candles, tradeDirection);
   if (signal === 'none')             return noResult(`Boof 8.0 NO_ENTRY [${regime.type}] CI=${ci.toFixed(1)}`);
   // Pattern weight scoring
