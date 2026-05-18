@@ -2485,7 +2485,7 @@ Deno.serve(async (req) => {
                   const dmi = calcDMI(candles.map(c => c.high), candles.map(c => c.low), candles.map(c => c.close), 14);
                   adxVal = dmi.adx[dmi.adx.length - 1] ?? 0;
                 }
-                const adxThreshold = 20;
+                const adxThreshold = settings.adxThreshold ?? 20;
                 if (adxVal > 0 && adxVal < adxThreshold) {
                   console.log(`[OptionsBot] ${sym} ADX GATE: adx=${adxVal.toFixed(1)} < ${adxThreshold} — market is choppy, skipping signal`);
                   results.push({ bot_id: bot.id, symbol: sym, status: 'skipped', reason: `ADX gate: ${adxVal.toFixed(1)} < ${adxThreshold} (choppy market)` });

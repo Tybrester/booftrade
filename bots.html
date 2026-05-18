@@ -1261,18 +1261,6 @@
                   <option value="5m" ${b.trend_filter==='5m'?'selected':''}>5-Minute EMA25</option>
                   <option value="10m" ${b.trend_filter==='10m'?'selected':''}>10-Minute EMA25</option>
                   <option value="15m" ${b.trend_filter==='15m'?'selected':''}>15-Minute EMA25</option>
-                  <option value="1h" ${b.trend_filter==='1h'?'selected':''}>1-Hour EMA25</option>
-                  <option value="4h" ${b.trend_filter==='4h'?'selected':''}>4-Hour EMA25</option>
-                  <option value="1d" ${b.trend_filter==='1d'?'selected':''}>Daily EMA25</option>
-                </select>
-              </div>
-              <div class="auto-settings-row"><span>Expiry</span>
-                <select class="auto-input" id="oexp-${b.id}" style="width:160px;">
-                  <option value="0dte" ${b.bot_expiry_type==='0dte'?'selected':''}>0DTE (Today)</option>
-                  <option value="1dte" ${b.bot_expiry_type==='1dte'?'selected':''}>1DTE (Next Day)</option>
-                  <option value="weekly" ${(!b.bot_expiry_type||b.bot_expiry_type==='weekly')?'selected':''}>Weekly (Next Friday)</option>
-                  <option value="biweekly" ${b.bot_expiry_type==='biweekly'?'selected':''}>Bi-Weekly (2 Weeks Out)</option>
-                  <option value="monthly" ${b.bot_expiry_type==='monthly'?'selected':''}>Monthly</option>
                 </select>
               </div>
 
@@ -1435,9 +1423,10 @@
       const botSignal = document.getElementById('osig-' + botId)?.value || 'supertrend';
       const tradingStyle = document.getElementById('ostyle-' + botId)?.value || 'scalper';
       const trendFilter = document.getElementById('otrend-' + botId)?.value || 'none';
-      console.log(`[SaveOptions] Bot ${botId}: sym=${sym}, $=${dol}, int=${int}, runInt=${runInt}min, dir=${dir}, signal=${botSignal}, scan=${scanMode}, style=${tradingStyle}, trend=${trendFilter}`);
+      const adxThreshold = parseInt(document.getElementById('oadx-' + botId)?.value) || 20;
+      console.log(`[SaveOptions] Bot ${botId}: sym=${sym}, $=${dol}, int=${int}, runInt=${runInt}min, dir=${dir}, signal=${botSignal}, scan=${scanMode}, style=${tradingStyle}, trend=${trendFilter}, adx=${adxThreshold}`);
       const otmStrikes = parseInt(document.getElementById(`ootm-${botId}`)?.value ?? '0');
-      const { error } = await sbClient.from('options_bots').update({ bot_symbol: sym, bot_dollar_amount: dol, bot_interval: int, run_interval_min: runInt, market_open_delay_min: startDelay, bot_expiry_type: expiry, bot_trade_direction: dir, bot_strike_mode: strikeMode, bot_manual_strike: strikeMode === 'manual' ? manualStrike : null, bot_scan_mode: scanMode, take_profit_pct: tp, stop_loss_pct: sl, symbol_rules: optSymbolRules, max_loss_dollar: null, max_profit_dollar: null, broker, bot_signal: botSignal, bot_otm_strikes: otmStrikes, trading_style: tradingStyle, trend_filter: trendFilter, updated_at: new Date().toISOString() }).eq('id', botId);
+      const { error } = await sbClient.from('options_bots').update({ bot_symbol: sym, bot_dollar_amount: dol, bot_interval: int, run_interval_min: runInt, market_open_delay_min: startDelay, bot_expiry_type: expiry, bot_trade_direction: dir, bot_strike_mode: strikeMode, bot_manual_strike: strikeMode === 'manual' ? manualStrike : null, bot_scan_mode: scanMode, take_profit_pct: tp, stop_loss_pct: sl, symbol_rules: optSymbolRules, max_loss_dollar: null, max_profit_dollar: null, broker, bot_signal: botSignal, bot_otm_strikes: otmStrikes, trading_style: tradingStyle, trend_filter: trendFilter, bot_adx_threshold: adxThreshold, updated_at: new Date().toISOString() }).eq('id', botId);
       const r = document.getElementById('opt-run-result-' + botId);
       if (error) {
         console.error('[SaveOptions] Error:', error);
