@@ -1280,9 +1280,9 @@ function runRegimeStrategy(
   // ── FLUSH DETECTOR: big body + ATR spike + volume surge ──
   const candleBody    = Math.abs(closes[i] - candles[i].open);
   const candleBodyPct = candles[i].open > 0 ? candleBody / candles[i].open * 100 : 0;
-  const atrSpike      = atrNow > atrAvg * 1.6;
+  const atrSpike      = atrNow > atrAvg * 2.0;
   const volAvg        = b50Mean(volumes.slice(-20));
-  const volSpike      = volumes[i] > volAvg * 1.4;
+  const volSpike      = volumes[i] > volAvg * 1.8;
   const bearFlush     = closes[i] < candles[i].open && candleBodyPct > 0.12 && atrSpike && volSpike;
   const bullFlush     = closes[i] > candles[i].open && candleBodyPct > 0.12 && atrSpike && volSpike;
 
@@ -1297,10 +1297,10 @@ function runRegimeStrategy(
     const prevBodyPct = candles[i-1].open > 0 ? prevBody / candles[i-1].open * 100 : 0;
     return closes[i-1] < candles[i-1].open && prevBodyPct > 0.10;
   })();
-  const recoveryBuy = curRSI < 33 &&
+  const recoveryBuy = curRSI < 30 &&
     closes[i] > ema21Now &&
     closes[i-1] <= ema21Prev &&
-    (prevBearFlush || curRSI < 28);  // either prev flush or deeply oversold
+    (prevBearFlush || curRSI < 25);  // either prev flush or deeply oversold
 
   if (regime.type === 'TREND_UP' || regime.type === 'TREND_DOWN' || regime.type === 'EXPLOSIVE') {
     // ── BREAKOUT / MOMENTUM STRATEGY ──
@@ -1327,11 +1327,16 @@ function runRegimeStrategy(
     let signal: 'buy' | 'sell' | 'none' = 'none';
     let reason = '';
 
+    // Sell slope gate: block sells if long-term EMA still sloping up
+    const ema50arr    = calcEMA(closes, 50);
+    const ema50slope  = ema50arr[ema50arr.length-1] > ema50arr[Math.max(0, ema50arr.length-4)];
+    const sellSlopeOk = !ema50slope;
+
     // Flush detector overrides — catches sudden moves before ADX confirms
     if (recoveryBuy && tradeDirection !== 'short') {
       signal = 'buy';
       reason = `Boof7.0 RECOVERY_BUY [${regime.type}] rsi=${curRSI.toFixed(1)} ema21cross prevFlush=${prevBearFlush}`;
-    } else if (bearFlush && regime.type !== 'TREND_UP') {
+    } else if (bearFlush && regime.type !== 'TREND_UP' && sellSlopeOk) {
       signal = 'sell';
       reason = `Boof7.0 FLUSH_BEAR [${regime.type}] body=${candleBodyPct.toFixed(2)}% atr=${atrNow.toFixed(3)} vol=${(volumes[i]/volAvg).toFixed(1)}x`;
     } else if (bullFlush && regime.type !== 'TREND_DOWN') {
@@ -1340,7 +1345,7 @@ function runRegimeStrategy(
     } else if ((emaCrossedUp || contBull) && regime.type !== 'TREND_DOWN' && rsiBuyOk) {
       signal = 'buy';
       reason = `Boof7.0 BREAKOUT [${regime.type}] ema9=${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)} rsi=${curRSI.toFixed(1)}`;
-    } else if ((emaCrossedDown || contBear) && regime.type !== 'TREND_UP' && rsiSellOk) {
+    } else if ((emaCrossedDown || contBear) && regime.type !== 'TREND_UP' && rsiSellOk && sellSlopeOk) {
       signal = 'sell';
       reason = `Boof7.0 BREAKOUT [${regime.type}] ema9=${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)} rsi=${curRSI.toFixed(1)}`;
     } else {
