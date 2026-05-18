@@ -853,21 +853,59 @@ async function fetchSpotPrice(symbol: string, alpacaApiKey?: string, alpacaSecre
 }
 
 async function fetchCandles(symbol: string, interval = '1h', bars = 150): Promise<Candle[]> {
-  // Yahoo Finance API (free, no key needed)
+  const isCrypto  = symbol.includes('-USD') || symbol.includes('/USD');
+  const isFutures = symbol.includes('=F');
+
+  // ── ALPACA FIRST (stocks only, lower latency, no rate limits) ──
+  if (!isCrypto && !isFutures) {
+    try {
+      const alpacaApiKey    = Deno.env.get('ALPACA_API_KEY') || '';
+      const alpacaSecretKey = Deno.env.get('ALPACA_SECRET_KEY') || '';
+      if (alpacaApiKey && alpacaSecretKey) {
+        const alpacaIntervalMap: Record<string, string> = {
+          '1m': '1Min', '5m': '5Min', '15m': '15Min', '30m': '30Min',
+          '1h': '1Hour', '4h': '4Hour', '1d': '1Day',
+        };
+        const timeframe = alpacaIntervalMap[interval] || '5Min';
+        const limit = Math.min(bars + 10, 1000);
+        const url = `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${timeframe}&limit=${limit}&adjustment=raw&feed=iex`;
+        const res = await fetch(url, {
+          headers: { 'APCA-API-KEY-ID': alpacaApiKey, 'APCA-API-SECRET-KEY': alpacaSecretKey }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const bars_data = json?.bars || [];
+          if (bars_data.length >= 30) {
+            const candles: Candle[] = bars_data.map((b: any) => ({
+              time:   new Date(b.t).getTime(),
+              open:   b.o, high: b.h, low: b.l, close: b.c, volume: b.v ?? 0
+            }));
+            console.log(`[OptionsBot] Alpaca candles ${symbol} (${interval}): ${candles.length} bars`);
+            return candles.slice(-bars);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`[OptionsBot] Alpaca candle fetch failed for ${symbol}, falling back to Yahoo:`, e);
+    }
+  }
+
+  // ── YAHOO FALLBACK (crypto, futures, or Alpaca failure) ──
   const intervalMap: Record<string, { yahooInterval: string; range: string }> = {
-    '1m':  { yahooInterval: '1m',  range: '5d'   },
-    '5m':  { yahooInterval: '5m',  range: '5d'   },
-    '10m': { yahooInterval: '15m', range: '5d'   },
-    '15m': { yahooInterval: '15m', range: '5d'   },
-    '30m': { yahooInterval: '30m', range: '1mo'  },
-    '45m': { yahooInterval: '60m', range: '1mo'  },
-    '1h':  { yahooInterval: '60m', range: '1mo'  },
-    '2h':  { yahooInterval: '60m', range: '3mo'  },
-    '4h':  { yahooInterval: '60m', range: '6mo'  },
-    '1d':  { yahooInterval: '1d',  range: '1y'   },
+    '1m':  { yahooInterval: '1m',  range: '5d'  },
+    '5m':  { yahooInterval: '5m',  range: '5d'  },
+    '10m': { yahooInterval: '15m', range: '5d'  },
+    '15m': { yahooInterval: '15m', range: '5d'  },
+    '30m': { yahooInterval: '30m', range: '1mo' },
+    '45m': { yahooInterval: '60m', range: '1mo' },
+    '1h':  { yahooInterval: '60m', range: '1mo' },
+    '2h':  { yahooInterval: '60m', range: '3mo' },
+    '4h':  { yahooInterval: '60m', range: '6mo' },
+    '1d':  { yahooInterval: '1d',  range: '1y'  },
   };
   const { yahooInterval, range } = intervalMap[interval] ?? intervalMap['1h'];
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${yahooInterval}&range=${range}`;
+  const yahooSymbol = isCrypto ? symbol.replace('/', '-') : symbol;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=${yahooInterval}&range=${range}`;
   const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } });
   if (!res.ok) throw new Error(`Yahoo API error: ${res.status}`);
   const json = await res.json();
@@ -881,7 +919,8 @@ async function fetchCandles(symbol: string, interval = '1h', bars = 150): Promis
       candles.push({ time: timestamps[i] * 1000, open: quote.open[i], high: quote.high[i], low: quote.low[i], close: quote.close[i], volume: quote.volume?.[i] ?? 0 });
     }
   }
-  if (candles.length < 60) throw new Error(`Not enough data for ${symbol} (got ${candles.length} candles)`);
+  if (candles.length < 30) throw new Error(`Not enough data for ${symbol} (got ${candles.length} candles)`);
+  console.log(`[OptionsBot] Yahoo candles ${symbol} (${interval}): ${candles.length} bars`);
   return candles.slice(-bars);
 }
 
