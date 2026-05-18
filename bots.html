@@ -1181,7 +1181,18 @@
                 </select>
               </div>
               <div id="osym-row-${b.id}" style="${b.bot_scan_mode&&b.bot_scan_mode!=='single'?'display:none':''}"><div class="auto-settings-row"><span>Symbol</span><input class="auto-input" id="osym-${b.id}" value="${b.bot_symbol||'SPY'}" placeholder="SPY, QQQ, NVDA" style="width:180px;" title="Single symbol or comma-separated list e.g. SPY, QQQ, NVDA" oninput="const s=document.getElementById('oper-sym-section-${b.id}');if(s)s.style.display=this.value.includes(',')?'block':'none';"/></div></div>
-              <div class="auto-settings-row"><span>$ Per Trade</span><input class="auto-input" id="odol-${b.id}" type="number" value="${b.bot_dollar_amount||500}" min="100"/></div>
+              <div class="auto-settings-row"><span>$ Per Trade</span>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  ${(()=>{
+                    const pct = b.last_position_size_pct;
+                    if (!pct || pct === null) return '';
+                    if (pct > 1.0) return `<span title="Boof 7.0 scaling up (${Math.round(pct*100)}%)" style="font-size:1rem;color:#00e676;line-height:1;">&#x2191;</span>`;
+                    if (pct < 1.0) return `<span title="Boof 7.0 scaling down (${Math.round(pct*100)}%)" style="font-size:1rem;color:#ff5252;line-height:1;">&#x2193;</span>`;
+                    return `<span title="Boof 7.0 at full size (100%)" style="font-size:0.85rem;color:#555;line-height:1;">&minus;</span>`;
+                  })()}
+                  <input class="auto-input" id="odol-${b.id}" type="number" value="${b.bot_dollar_amount||500}" min="100"/>
+                </div>
+              </div>
               <div class="auto-settings-row"><span>Trading Style</span>
                 <select class="auto-input wide" id="ostyle-${b.id}" onchange="updateOptionsBotStyle('${b.id}')">
                   <option value="hyper" ${b.trading_style==='hyper'?'selected':''}>Hyper Scalper (1m)</option>

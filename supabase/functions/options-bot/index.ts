@@ -2189,6 +2189,36 @@ Deno.serve(async (req) => {
                   continue;
                 }
                 sigResult = generateSignalBoof30(swingCandles, settings.tradeDirection);
+              } else if (botSignal === 'boof70') {
+                const { data: recentTrades70 } = await supabase.from('options_trades')
+                  .select('pnl').eq('bot_id', bot.id as string).eq('symbol', sym)
+                  .not('pnl', 'is', null).order('closed_at', { ascending: false }).limit(20);
+                const pnls70 = (recentTrades70 || []).map((t: any) => Number(t.pnl));
+                const wins70 = pnls70.filter((p: number) => p > 0).length;
+                const recentWinRate70 = pnls70.length > 0 ? wins70 / pnls70.length : 0.5;
+                let consecutiveLosses70 = 0;
+                for (const p of pnls70) { if (p <= 0) consecutiveLosses70++; else break; }
+                const isCryptoSym70 = sym.includes('-USD') || sym.includes('/USD');
+                // Kill-switch: 7+ consecutive losses → skip
+                if (consecutiveLosses70 >= 7) {
+                  console.log(`[Boof7.0][OptionsBot] Kill-switch: ${consecutiveLosses70} consecutive losses — paused`);
+                  results.push({ bot_id: bot.id, symbol: sym, status: 'skipped', reason: `Boof 7.0 kill-switch: ${consecutiveLosses70} consecutive losses` });
+                  continue;
+                }
+                // Adaptive position sizing
+                let sizePct70 = 1.0;
+                if (recentWinRate70 >= 0.60) sizePct70 = 1.25;
+                else if (recentWinRate70 < 0.40) sizePct70 = 0.60;
+                if (consecutiveLosses70 >= 5) sizePct70 *= 0.25;
+                else if (consecutiveLosses70 >= 3) sizePct70 *= 0.50;
+                sizePct70 = Math.max(0.10, Math.min(1.50, sizePct70));
+                if (sizePct70 !== 1.0) {
+                  const orig = settings.dollarAmount;
+                  settings.dollarAmount = Math.round(settings.dollarAmount * sizePct70);
+                  console.log(`[Boof7.0][OptionsBot] Position size: ${(sizePct70*100).toFixed(0)}% → $${orig} → $${settings.dollarAmount}`);
+                  await supabase.from('options_bots').update({ last_position_size_pct: sizePct70 }).eq('id', bot.id as string);
+                }
+                sigResult = generateSignalBoof30(candles, settings.tradeDirection);
               } else if (botSignal === 'test_always_buy') {
                 // TEST MODE: Always fires BUY signal to test trade execution
                 const lastClose = candles[candles.length - 1].close;
