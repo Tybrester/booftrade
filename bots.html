@@ -1238,6 +1238,25 @@
                   <option value="30" ${b.market_open_delay_min===30?'selected':''}>30 min (10:00 AM ET)</option>
                 </select>
               </div>
+              <div class="auto-settings-row"><span>Expiry</span>
+                <select class="auto-input wide" id="oexp-${b.id}">
+                  <option value="0dte"     ${b.bot_expiry_type==='0dte'    ?'selected':''}>0DTE (Today)</option>
+                  <option value="1dte"     ${b.bot_expiry_type==='1dte'    ?'selected':''}>1DTE (Next Day)</option>
+                  <option value="weekly"   ${(!b.bot_expiry_type||b.bot_expiry_type==='weekly')?'selected':''}>Weekly (Next Friday)</option>
+                  <option value="biweekly" ${b.bot_expiry_type==='biweekly'?'selected':''}>Bi-Weekly</option>
+                  <option value="monthly"  ${b.bot_expiry_type==='monthly' ?'selected':''}>Monthly</option>
+                </select>
+              </div>
+              <div class="auto-settings-row"><span>ADX Threshold</span>
+                <select class="auto-input wide" id="oadx-${b.id}" title="Minimum ADX for a signal to fire — higher = stricter, fewer trades">
+                  <option value="10" ${b.bot_adx_threshold===10?'selected':''}>10 — Very Aggressive</option>
+                  <option value="15" ${b.bot_adx_threshold===15?'selected':''}>15 — Aggressive</option>
+                  <option value="20" ${(!b.bot_adx_threshold||b.bot_adx_threshold===20)?'selected':''}>20 — Default</option>
+                  <option value="25" ${b.bot_adx_threshold===25?'selected':''}>25 — Strict</option>
+                  <option value="30" ${b.bot_adx_threshold===30?'selected':''}>30 — Very Strict</option>
+                  <option value="35" ${b.bot_adx_threshold===35?'selected':''}>35 — Strong Trends Only</option>
+                </select>
+              </div>
               <div class="auto-settings-row">
                 <span>Signal</span>
                 <select class="auto-input" id="osig-${b.id}" style="width:220px;">
