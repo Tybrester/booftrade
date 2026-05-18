@@ -1656,6 +1656,9 @@ function calcAdaptiveTPSL(
        : 45)               // Strong trend min: 45%
     : (ci > 70 ? 20 : 40); // Weekly min: 20-40%
 
+  // SL scales with CI: -15% (strong trend) to -25% (choppy)
+  // CI < 50: -15% to -20%, CI 50-55: -20%, CI > 55: -25% or skip
+
   return {
     tpPct:         Math.max(minTp, Math.min(maxTp, tpPct)),
     // SL centered on -20% for 0DTE, scales -10% to -30%
