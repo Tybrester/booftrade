@@ -1640,13 +1640,13 @@ function calcAdaptiveTPSL(
     ? (atr * 1.0 / entryPrice) * 100  // Wider initial trail for 0DTE volatility
     : (atr * 0.5 / entryPrice) * 100;
 
-  // Cap TP: EXTREME scaling allows up to 200% on strong trends
+  // Cap TP: Lowered thresholds by 20% across the board
   const maxTp = is0DTE
-    ? (ci < 20 ? 200 : ci < 30 ? 150 : ci < 40 ? 120 : 100)  // 0DTE: 100-200% based on trend
-    : (ci < 25 ? 120 : 80);  // Weekly: up to 120% in strong trends
+    ? (ci < 20 ? 180 : ci < 30 ? 120 : ci < 40 ? 100 : 80)  // 0DTE: 80-180% based on trend
+    : (ci < 25 ? 100 : 60);  // Weekly: up to 100% in strong trends
   const minTp = is0DTE
-    ? (ci > 50 ? 15 : ci > 40 ? 20 : 35)  // 0DTE min: 15-35% based on chop
-    : (ci > 70 ? 0.5 : 1.0);  // Weekly min: 0.5-1%
+    ? (ci > 50 ? 12 : ci > 40 ? 16 : 28)  // 0DTE min: 12-28% based on chop
+    : (ci > 70 ? 0.4 : 0.8);  // Weekly min: 0.4-0.8%
 
   return {
     tpPct:         Math.max(minTp, Math.min(maxTp, tpPct)),
