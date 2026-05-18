@@ -2183,6 +2183,33 @@ Deno.serve(async (req) => {
                   await supabase.from('options_bots').update({ last_position_size_pct: sizePct70 }).eq('id', bot.id as string);
                 }
                 sigResult = generateSignalBoof30(candles, settings.tradeDirection);
+              } else if (botSignal === 'boof80') {
+                // Boof 8.0: Adaptive AI Scalper — self-tunes TP/SL from trade history
+                const { data: recentTrades80 } = await supabase.from('options_trades')
+                  .select('reason, pnl, regime').eq('bot_id', bot.id as string).eq('symbol', sym)
+                  .not('pnl', 'is', null).order('closed_at', { ascending: false }).limit(20);
+                const trades80 = (recentTrades80 || []).map((t: any) => ({
+                  reason:  t.reason  || '',
+                  pnlPct:  Number(t.pnl) || 0,
+                  regime:  t.regime  || 'UNKNOWN',
+                }));
+                const pnls80  = trades80.map(t => t.pnlPct);
+                const wins80  = pnls80.filter(p => p > 0).length;
+                const winRate80 = pnls80.length > 0 ? wins80 / pnls80.length : 0.5;
+                let consLosses80 = 0;
+                for (const p of pnls80) { if (p <= 0) consLosses80++; else break; }
+                const isCrypto80 = sym.includes('-USD') || sym.includes('/USD');
+                const boof80result = generateSignalBoof80(candles, settings.tradeDirection, {
+                  recentTrades:      trades80,
+                  consecutiveLosses: consLosses80,
+                  recentWinRate:     winRate80,
+                  isCrypto:          isCrypto80,
+                });
+                if (boof80result.killSwitch) {
+                  results.push({ bot_id: bot.id, symbol: sym, status: 'skipped', reason: `Boof 8.0 kill-switch: ${boof80result.killReason}` });
+                  continue;
+                }
+                sigResult = { signal: boof80result.signal, price: boof80result.price, reason: boof80result.reason, trend: boof80result.trend, ema: boof80result.ema, adx: boof80result.adx };
               } else if (botSignal === 'test_always_buy') {
                 // TEST MODE: Always fires BUY signal to test trade execution
                 const lastClose = candles[candles.length - 1].close;

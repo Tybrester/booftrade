@@ -1448,6 +1448,251 @@ function generateSignalBoof70(
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// BOOF 8.0 — ADAPTIVE AI SCALPER
+// Builds on 7.0 with: Choppiness Index, pattern-weight learning, adaptive TP/SL
+// The bot reads its own recent trade history and self-tunes TP/SL every run
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface Boof80PatternWeight {
+  pattern: string;       // e.g. 'TREND_UP:BREAKOUT', 'RANGE:MEAN_REV'
+  wins: number;
+  losses: number;
+  avgWinPct: number;
+  avgLossPct: number;
+}
+
+interface Boof80Context {
+  recentTrades: { reason: string; pnlPct: number; regime: string }[];  // last 20 trades
+  consecutiveLosses: number;
+  recentWinRate: number;
+  isCrypto: boolean;
+}
+
+interface Boof80Result {
+  signal: 'buy' | 'sell' | 'none';
+  price: number;
+  trend: number;
+  ema: number;
+  adx: number;
+  reason: string;
+  regime: string;
+  dynamicTP: number;
+  dynamicSL: number;
+  positionSizePct: number;
+  killSwitch: boolean;
+  killReason?: string;
+  choppiness: number;
+  patternWeight: number;
+  adaptedFromHistory: boolean;
+}
+
+// ── Choppiness Index (14) ─────────────────────────────────────────────────────
+// 0-100: < 38 = strong trend, > 62 = choppy/ranging, 38-62 = mixed
+function calcChoppinessIndex(highs: number[], lows: number[], closes: number[], period = 14): number {
+  const n = closes.length;
+  if (n < period + 1) return 50;
+
+  // Sum of ATR over period
+  let atrSum = 0;
+  for (let i = n - period; i < n; i++) {
+    const tr = Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1])
+    );
+    atrSum += tr;
+  }
+
+  // Highest high - Lowest low over period
+  const periodHighs = highs.slice(n - period);
+  const periodLows  = lows.slice(n - period);
+  const hh = Math.max(...periodHighs);
+  const ll = Math.min(...periodLows);
+  const range = hh - ll;
+
+  if (range === 0) return 50;
+  const ci = 100 * Math.log10(atrSum / range) / Math.log10(period);
+  return Math.max(0, Math.min(100, ci));
+}
+
+// ── Pattern Weight Scorer ─────────────────────────────────────────────────────
+// Reads recent trade reasons + PnL and returns a weight (0.5-1.5) for TP/SL scaling
+// High weight = pattern has been winning → wider TP, slightly tighter SL
+// Low weight  = pattern has been losing  → tighter TP, tighter SL (risk reduction)
+function scorePatternWeight(
+  patternKey: string,   // e.g. 'TREND_UP:BREAKOUT'
+  recentTrades: Boof80Context['recentTrades']
+): { weight: number; wins: number; losses: number; avgWin: number; avgLoss: number } {
+  if (!recentTrades.length) return { weight: 1.0, wins: 0, losses: 0, avgWin: 0, avgLoss: 0 };
+
+  // Match trades that fired with this pattern (fuzzy match on reason string)
+  const [regime, pattern] = patternKey.split(':');
+  const matched = recentTrades.filter(t =>
+    t.reason?.includes(pattern) && t.regime === regime
+  );
+
+  if (matched.length < 2) return { weight: 1.0, wins: 0, losses: 0, avgWin: 0, avgLoss: 0 };
+
+  const wins   = matched.filter(t => t.pnlPct > 0);
+  const losses = matched.filter(t => t.pnlPct <= 0);
+  const winRate = wins.length / matched.length;
+  const avgWin  = wins.length  > 0 ? wins.reduce((a, t) => a + t.pnlPct, 0) / wins.length  : 0;
+  const avgLoss = losses.length > 0 ? losses.reduce((a, t) => a + t.pnlPct, 0) / losses.length : 0;
+
+  // Expectancy-based weight: (winRate * avgWin + (1-winRate) * avgLoss) normalized
+  const expectancy = winRate * avgWin + (1 - winRate) * avgLoss;
+  // Map expectancy to weight: expectancy > 2% = 1.4, < -2% = 0.6
+  const weight = Math.max(0.5, Math.min(1.5, 1.0 + expectancy / 4));
+
+  return { weight, wins: wins.length, losses: losses.length, avgWin, avgLoss };
+}
+
+// ── Adaptive TP/SL ────────────────────────────────────────────────────────────
+// Combines regime base, choppiness index, volatility percentile, and pattern weight
+function calcAdaptiveTPSL(
+  regime: Boof70Regime,
+  entryPrice: number,
+  ci: number,                 // Choppiness Index 0-100
+  patternWeight: number,      // 0.5-1.5 from pattern scorer
+  recentWinRate: number       // 0-1
+): { tpPct: number; slPct: number; trailingSlPct: number } {
+  // Base ATR multipliers per regime (same as 7.0)
+  const baseMultipliers: Record<string, { tp: number; sl: number }> = {
+    TREND_UP:   { tp: 3.0, sl: 1.2 },
+    TREND_DOWN: { tp: 3.0, sl: 1.2 },
+    RANGE:      { tp: 1.5, sl: 1.0 },
+    HIGH_VOL:   { tp: 4.0, sl: 2.0 },
+    LOW_VOL:    { tp: 1.0, sl: 0.8 },
+    EXPLOSIVE:  { tp: 5.0, sl: 2.5 },
+  };
+  const m = baseMultipliers[regime.type] || baseMultipliers['TREND_UP'];
+
+  // ── CI adjustment: choppy = tighter TP + tighter SL ──
+  // CI 62+ (choppy): scale down to 0.7x. CI 38- (trending): scale up to 1.3x
+  const ciScale = ci > 62 ? 0.70 : ci < 38 ? 1.30 : 1.0 + (50 - ci) / 100;
+
+  // ── Volatility percentile adjustment ──
+  // High vol = wider stops needed, low vol = tighter
+  const volScale = regime.volatilityPercentile > 0.75 ? 1.20
+                 : regime.volatilityPercentile < 0.25 ? 0.85
+                 : 1.0;
+
+  // ── Win rate adjustment (recent performance) ──
+  // Hot streak (>60%) → slightly wider TP to let winners run
+  // Cold streak (<35%) → cut TP, keep SL same (protect capital)
+  const winRateTpScale = recentWinRate > 0.60 ? 1.15
+                       : recentWinRate < 0.35 ? 0.75
+                       : 1.0;
+
+  // ── Combine all factors ──
+  const tpMultiplier = m.tp * ciScale * volScale * patternWeight * winRateTpScale;
+  const slMultiplier = m.sl * ciScale * volScale;  // SL doesn't scale with pattern weight
+
+  const atr = regime.atr;
+  const tpPrice = entryPrice + atr * tpMultiplier;
+  const slPrice = entryPrice - atr * slMultiplier;
+  const tpPct   = ((tpPrice - entryPrice) / entryPrice) * 100;
+  const slPct   = ((slPrice - entryPrice) / entryPrice) * 100;
+
+  // Trailing SL: once +1.5% in profit, trail at 0.5x ATR behind price
+  const trailingSlPct = (atr * 0.5 / entryPrice) * 100;
+
+  return {
+    tpPct:         Math.max(1.0, Math.min(35, tpPct)),
+    slPct:         Math.max(-25, Math.min(-0.5, slPct)),
+    trailingSlPct: Math.max(0.3, Math.min(3.0, trailingSlPct)),
+  };
+}
+
+// ── MAIN BOOF 8.0 ENTRY POINT ─────────────────────────────────────────────────
+function generateSignalBoof80(
+  candles: any[],
+  tradeDirection = 'both',
+  context: Boof80Context = { recentTrades: [], consecutiveLosses: 0, recentWinRate: 0.5, isCrypto: false }
+): Boof80Result {
+  const closes  = candles.map((c: any) => c.close);
+  const highs   = candles.map((c: any) => c.high);
+  const lows    = candles.map((c: any) => c.low);
+  const volumes = candles.map((c: any) => c.volume || 1000000);
+  const n = closes.length;
+  const curPrice = closes[n-2] ?? closes[n-1];
+  const { recentTrades, consecutiveLosses, recentWinRate, isCrypto } = context;
+
+  const noResult = (reason: string, kill = false, killReason?: string): Boof80Result => ({
+    signal: 'none', price: curPrice, trend: 0, ema: curPrice, adx: 0,
+    reason, regime: 'NONE', dynamicTP: 0, dynamicSL: 0, positionSizePct: 0,
+    killSwitch: kill, killReason, choppiness: 50, patternWeight: 1.0, adaptedFromHistory: false
+  });
+
+  if (n < 50) return noResult('Boof 8.0: insufficient data (need 50 bars)');
+  if (consecutiveLosses >= 7) return noResult(`Kill-switch: ${consecutiveLosses} consecutive losses`, true, `${consecutiveLosses} consecutive losses`);
+
+  const timeCheck = isNoTradeZone(isCrypto);
+  if (timeCheck.skip) return noResult(`Boof 8.0: ${timeCheck.reason}`);
+
+  // ── 1. REGIME DETECTION (reuse 7.0) ──────────────────────────────────────
+  const regime = detectRegime70(highs, lows, closes, volumes);
+  if (!regime.shouldTrade) return noResult(`Boof 8.0: skipping — ${regime.noTradeReason}`);
+
+  // ── 2. CHOPPINESS INDEX ───────────────────────────────────────────────────
+  const ci = calcChoppinessIndex(highs, lows, closes, 14);
+  const marketState = ci > 62 ? 'CHOPPY' : ci < 38 ? 'TRENDING' : 'MIXED';
+
+  // Skip trading in extremely choppy markets (CI > 72) unless explosive
+  if (ci > 72 && regime.type !== 'EXPLOSIVE') {
+    return noResult(`Boof 8.0: market too choppy (CI=${ci.toFixed(1)}) — skipping`);
+  }
+
+  // ── 3. SIGNAL GENERATION (reuse 7.0 strategy) ────────────────────────────
+  const { signal, reason } = runRegimeStrategy(regime, candles, tradeDirection);
+  if (signal === 'none') {
+    return noResult(`Boof 8.0 NO_ENTRY [${regime.type}] CI=${ci.toFixed(1)} ${marketState}`);
+  }
+
+  // ── 4. PATTERN WEIGHT SCORING ─────────────────────────────────────────────
+  // Extract pattern label from reason string (e.g. "BREAKOUT", "MEAN_REV", "FLUSH_BULL")
+  const patternMatch = reason.match(/Boof7\.0\s+(\w+)/);
+  const patternLabel = patternMatch?.[1] ?? 'UNKNOWN';
+  const patternKey   = `${regime.type}:${patternLabel}`;
+  const { weight: patternWeight, wins: pWins, losses: pLosses } = scorePatternWeight(patternKey, recentTrades);
+  const adaptedFromHistory = recentTrades.length >= 2;
+
+  // Block signal if pattern has been consistently losing (weight < 0.65)
+  if (patternWeight < 0.65 && recentTrades.length >= 5) {
+    return noResult(`Boof 8.0: pattern ${patternKey} underperforming (weight=${patternWeight.toFixed(2)}, ${pWins}W/${pLosses}L) — skipping`);
+  }
+
+  // ── 5. ADAPTIVE TP/SL ─────────────────────────────────────────────────────
+  const { tpPct, slPct, trailingSlPct } = calcAdaptiveTPSL(regime, curPrice, ci, patternWeight, recentWinRate);
+
+  // ── 6. POSITION SIZING (reuse 7.0) ────────────────────────────────────────
+  const positionSizePct = calcPositionSize70(regime, recentWinRate, consecutiveLosses);
+
+  // ── 7. EMA for display ────────────────────────────────────────────────────
+  const ema21 = calcEMA(closes, 21);
+  const ema21Val = ema21[ema21.length-1] ?? curPrice;
+
+  const fullReason = `${reason} | CI=${ci.toFixed(1)}[${marketState}] pw=${patternWeight.toFixed(2)}(${pWins}W/${pLosses}L) tp=+${tpPct.toFixed(1)}% sl=${slPct.toFixed(1)}% trail=${trailingSlPct.toFixed(1)}% size=${(positionSizePct*100).toFixed(0)}% adapted=${adaptedFromHistory}`;
+
+  return {
+    signal,
+    price:    curPrice,
+    trend:    regime.maSlope > 0 ? 1 : -1,
+    ema:      ema21Val,
+    adx:      regime.adx,
+    reason:   fullReason,
+    regime:   regime.type,
+    dynamicTP:  tpPct,
+    dynamicSL:  slPct,
+    positionSizePct,
+    killSwitch: false,
+    choppiness: ci,
+    patternWeight,
+    adaptedFromHistory,
+  };
+}
+
 // ─────────────────────────────────────────────
 // FETCH CANDLES (Yahoo Finance - Live)
 // ─────────────────────────────────────────────
