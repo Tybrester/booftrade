@@ -2342,7 +2342,9 @@ Deno.serve(async (req) => {
         const tradedThisRun = new Set<string>();
         for (const sym of symbolList) {
           try {
-              const candles = await fetchCandles(sym, settings.interval, 150, alpacaCreds?.api_key, alpacaCreds?.secret_key);
+              // 1m charts: fetch 780 bars (2 full trading days) so 8.0 has prior-day history at open
+              const barsToFetch = settings.interval === '1m' ? 780 : 150;
+              const candles = await fetchCandles(sym, settings.interval, barsToFetch, alpacaCreds?.api_key, alpacaCreds?.secret_key);
               if (candles.length < 60) { results.push({ bot_id: bot.id, symbol: sym, status: 'skipped', reason: 'Not enough candle data' }); continue; }
 
               // INDEPENDENT MODE: Always generate our own signal based on bot_signal setting
