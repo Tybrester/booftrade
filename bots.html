@@ -1294,9 +1294,9 @@
                         ${isAdapted ? `<div style="font-size:0.65rem;color:#00d4ff;display:flex;align-items:center;gap:4px;margin-bottom:1px;"><span style="animation:pulse 2s infinite;">⚡</span> AI Adapted ${adaptedAgo} &nbsp;·&nbsp; TP <span style="color:#00e676;">▲${r.tp}%</span> &nbsp; SL <span style="color:#ff5252;">▼${r.sl}%</span></div>` : ''}
                         <div style="display:flex;gap:6px;align-items:center;">
                           <input class="auto-input" value="${r.symbol}" placeholder="SPY" style="width:58px;font-size:0.75rem;text-transform:uppercase;padding:4px 6px;" oninput="this.value=this.value.toUpperCase()" data-rule-sym/>
-                          <span style="${isAdapted?'color:#00e676;font-weight:700;':'color:#555;'}font-size:0.7rem;">${isAdapted?'▲':''} TP</span>
+                          <span style="${isAdapted?'color:#00e676;font-weight:700;':'color:#555;'}font-size:0.7rem;">${isAdapted?'▲':'—'} TP</span>
                           <input class="auto-input" type="number" value="${r.tp}" min="1" max="500" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;${isAdapted?'border-color:rgba(0,230,118,0.35);color:#00e676;font-weight:600;':''}" data-rule-tp/>
-                          <span style="${isAdapted?'color:#ff5252;font-weight:700;':'color:#555;'}font-size:0.7rem;">% ${isAdapted?'▼':''} SL</span>
+                          <span style="${isAdapted?'color:#ff5252;font-weight:700;':'color:#555;'}font-size:0.7rem;">% ${isAdapted?'▼':'—'} SL</span>
                           <input class="auto-input" type="number" value="${r.sl}" min="-100" max="0" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;${isAdapted?'border-color:rgba(255,82,82,0.35);color:#ff5252;font-weight:600;':''}" data-rule-sl/>
                           <span style="color:#555;font-size:0.7rem;">%</span>
                           <select class="auto-input" style="width:60px;font-size:0.7rem;padding:4px 4px;" data-rule-dir>
