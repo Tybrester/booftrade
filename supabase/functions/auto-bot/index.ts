@@ -1269,53 +1269,82 @@ function runRegimeStrategy(
   const n = closes.length;
   const i = n - 2;
 
+  // ── SHARED: RSI + ATR for all strategies ──
+  const rsi    = calcRSI(closes, 14);
+  const curRSI = rsi[rsi.length-2] ?? 50;
+  const atrVals: number[] = [];
+  for (let j = 1; j < n; j++) atrVals.push(Math.max(highs[j]-lows[j], Math.abs(highs[j]-closes[j-1]), Math.abs(lows[j]-closes[j-1])));
+  const atrNow = b50Mean(atrVals.slice(-14));
+  const atrAvg = b50Mean(atrVals.slice(-34, -14));
+
+  // ── FLUSH DETECTOR: big body + ATR spike + volume surge ──
+  const candleBody    = Math.abs(closes[i] - candles[i].open);
+  const candleBodyPct = candles[i].open > 0 ? candleBody / candles[i].open * 100 : 0;
+  const atrSpike      = atrNow > atrAvg * 1.6;
+  const volAvg        = b50Mean(volumes.slice(-20));
+  const volSpike      = volumes[i] > volAvg * 1.4;
+  const bearFlush     = closes[i] < candles[i].open && candleBodyPct > 0.12 && atrSpike && volSpike;
+  const bullFlush     = closes[i] > candles[i].open && candleBodyPct > 0.12 && atrSpike && volSpike;
+
   if (regime.type === 'TREND_UP' || regime.type === 'TREND_DOWN' || regime.type === 'EXPLOSIVE') {
     // ── BREAKOUT / MOMENTUM STRATEGY ──
-    // Enter on EMA crossover + MACD confirmation in trend direction
     const ema9  = calcEMA(closes, 9);
     const ema21 = calcEMA(closes, 21);
     const { hist } = calcMACD(closes, 12, 26, 9);
     const histLast = hist[hist.length-1] ?? 0;
     const histPrev = hist[hist.length-2] ?? 0;
 
-    const emaUp   = ema9[ema9.length-1] > ema21[ema21.length-1];
+    const emaUp          = ema9[ema9.length-1] > ema21[ema21.length-1];
     const emaCrossedUp   = ema9[ema9.length-2] <= ema21[ema21.length-2] && emaUp;
     const emaCrossedDown = ema9[ema9.length-2] >= ema21[ema21.length-2] && !emaUp;
     const macdBull = histLast > 0 && histLast > histPrev;
     const macdBear = histLast < 0 && histLast < histPrev;
 
-    // Also allow continuation entries (not just crossover)
-    const contBull = emaUp && macdBull && closes[i] > closes[i-1];
+    // Continuation entries
+    const contBull = emaUp  && macdBull && closes[i] > closes[i-1];
     const contBear = !emaUp && macdBear && closes[i] < closes[i-1];
 
+    // RSI filter: don't buy overbought, don't sell oversold
+    const rsiBuyOk  = curRSI > 40 && curRSI < 75;
+    const rsiSellOk = curRSI < 60 && curRSI > 25;
+
     let signal: 'buy' | 'sell' | 'none' = 'none';
-    if ((emaCrossedUp || contBull) && regime.type !== 'TREND_DOWN') signal = 'buy';
-    else if ((emaCrossedDown || contBear) && regime.type !== 'TREND_UP') signal = 'sell';
+    let reason = '';
+
+    // Flush detector overrides — catches sudden moves before ADX confirms
+    if (bearFlush && regime.type !== 'TREND_UP') {
+      signal = 'sell';
+      reason = `Boof7.0 FLUSH_BEAR [${regime.type}] body=${candleBodyPct.toFixed(2)}% atr=${atrNow.toFixed(3)} vol=${(volumes[i]/volAvg).toFixed(1)}x`;
+    } else if (bullFlush && regime.type !== 'TREND_DOWN') {
+      signal = 'buy';
+      reason = `Boof7.0 FLUSH_BULL [${regime.type}] body=${candleBodyPct.toFixed(2)}% atr=${atrNow.toFixed(3)} vol=${(volumes[i]/volAvg).toFixed(1)}x`;
+    } else if ((emaCrossedUp || contBull) && regime.type !== 'TREND_DOWN' && rsiBuyOk) {
+      signal = 'buy';
+      reason = `Boof7.0 BREAKOUT [${regime.type}] ema9=${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)} rsi=${curRSI.toFixed(1)}`;
+    } else if ((emaCrossedDown || contBear) && regime.type !== 'TREND_UP' && rsiSellOk) {
+      signal = 'sell';
+      reason = `Boof7.0 BREAKOUT [${regime.type}] ema9=${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)} rsi=${curRSI.toFixed(1)}`;
+    } else {
+      reason = `Boof7.0 NO_ENTRY [${regime.type}] ema9=${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)} rsi=${curRSI.toFixed(1)}`;
+    }
 
     if (tradeDirection === 'long'  && signal === 'sell') signal = 'none';
     if (tradeDirection === 'short' && signal === 'buy')  signal = 'none';
-
-    return { signal, reason: `Boof7.0 BREAKOUT [${regime.type}] ema9>${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)}` };
+    return { signal, reason };
 
   } else if (regime.type === 'RANGE') {
     // ── MEAN REVERSION STRATEGY ──
-    // Buy oversold at lower BB, sell overbought at upper BB
-    const sma20 = b50SMA(closes, 20);
-    const std20 = b50StdDev(closes, 20);
+    const sma20   = b50SMA(closes, 20);
+    const std20   = b50StdDev(closes, 20);
     const bbUpper = sma20[sma20.length-1] + 2 * std20;
     const bbLower = sma20[sma20.length-1] - 2 * std20;
-    const rsi = calcRSI(closes, 14);
-    const curRSI = rsi[rsi.length-2] ?? 50;
 
     let signal: 'buy' | 'sell' | 'none' = 'none';
-    // Price touching lower band + RSI oversold → buy bounce
-    if (closes[i] <= bbLower * 1.005 && curRSI < 38) signal = 'buy';
-    // Price touching upper band + RSI overbought → sell fade
-    else if (closes[i] >= bbUpper * 0.995 && curRSI > 62) signal = 'sell';
+    if      (closes[i] <= bbLower * 1.005 && curRSI < 40) signal = 'buy';
+    else if (closes[i] >= bbUpper * 0.995 && curRSI > 60) signal = 'sell';
 
     if (tradeDirection === 'long'  && signal === 'sell') signal = 'none';
     if (tradeDirection === 'short' && signal === 'buy')  signal = 'none';
-
     return { signal, reason: `Boof7.0 MEAN_REV [RANGE] rsi=${curRSI.toFixed(1)} bb=[${bbLower.toFixed(2)}-${bbUpper.toFixed(2)}]` };
 
   } else {
