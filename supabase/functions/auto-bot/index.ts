@@ -1595,11 +1595,24 @@ function calcAdaptiveTPSL(
 
   const m = baseMultipliers[regime.type] || baseMultipliers['TREND_UP'];
 
-  // ── CI adjustment ──
-  // 0DTE: More aggressive scaling - trending markets get bigger TP
+  // ── CI adjustment: EXTREME scaling based on trend strength ──
+  // CI 0-20: Strong trend → MASSIVE TP (2-3x base)
+  // CI 20-35: Moderate trend → Bigger TP (1.5-2x base)
+  // CI 35-50: Weak trend → Normal TP (0.8-1.2x base)
+  // CI 50-60: Choppy → TIGHT TP (0.4-0.6x base)
+  // CI 60+: Skip entirely (handled above)
   const ciScale = is0DTE
-    ? (ci > 50 ? 0.60 : ci < 35 ? 1.50 : 1.0)  // Wider range for 0DTE
-    : (ci > 62 ? 0.70 : ci < 38 ? 1.30 : 1.0 + (50 - ci) / 100);
+    ? (ci < 20 ? 2.50      // EXTREME trend: 2.5x wider TP
+       : ci < 30 ? 2.00     // Strong trend: 2x wider TP
+       : ci < 40 ? 1.50     // Moderate trend: 1.5x wider TP
+       : ci < 50 ? 1.00     // Normal: base TP
+       : ci < 55 ? 0.50     // Getting choppy: tight TP
+       : 0.40)              // Very choppy: ultra tight before skip kicks in
+    : (ci > 70 ? 0.50       // EXTREME chop for weekly: 0.5x tighter
+       : ci > 62 ? 0.70     // Choppy: 0.7x tighter
+       : ci < 25 ? 1.80     // Strong trend: 1.8x wider
+       : ci < 38 ? 1.30     // Moderate trend: 1.3x wider
+       : 1.0 + (50 - ci) / 100);  // Gradual scale between
 
   // ── Volatility percentile adjustment ──
   const volScale = regime.volatilityPercentile > 0.75 ? 1.25
@@ -1627,9 +1640,13 @@ function calcAdaptiveTPSL(
     ? (atr * 1.0 / entryPrice) * 100  // Wider initial trail for 0DTE volatility
     : (atr * 0.5 / entryPrice) * 100;
 
-  // Cap TP: 0DTE max 150% (aggressive), normal max 80%
-  const maxTp = is0DTE ? 150 : 80;
-  const minTp = is0DTE ? 25 : 1.0;  // 0DTE minimum 25% target
+  // Cap TP: EXTREME scaling allows up to 200% on strong trends
+  const maxTp = is0DTE
+    ? (ci < 20 ? 200 : ci < 30 ? 150 : ci < 40 ? 120 : 100)  // 0DTE: 100-200% based on trend
+    : (ci < 25 ? 120 : 80);  // Weekly: up to 120% in strong trends
+  const minTp = is0DTE
+    ? (ci > 50 ? 15 : ci > 40 ? 20 : 35)  // 0DTE min: 15-35% based on chop
+    : (ci > 70 ? 0.5 : 1.0);  // Weekly min: 0.5-1%
 
   return {
     tpPct:         Math.max(minTp, Math.min(maxTp, tpPct)),
