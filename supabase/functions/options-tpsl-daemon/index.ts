@@ -46,8 +46,29 @@ function calcHistoricalVolatility(closes: number[], period = 20, interval = '1h'
 }
 
 // ── FETCH REAL OPTION PRICE ──
-async function fetchRealOptionPrice(symbol: string, strike: number, expiration: string, optionType: string, interval = '1h', userId?: string, supabase?: any): Promise<number> {
-  // Try Tastytrade first if userId provided
+async function fetchRealOptionPrice(symbol: string, strike: number, expiration: string, optionType: string, interval = '1h', userId?: string, supabase?: any, alpacaApiKey?: string, alpacaSecretKey?: string): Promise<number> {
+  // 1. Try Alpaca OPRA first (real-time, no auth needed beyond API key)
+  if (alpacaApiKey && alpacaSecretKey) {
+    try {
+      const exp = expiration.replace(/-/g, '');
+      const yy = exp.slice(2, 4);
+      const mm = exp.slice(4, 6);
+      const dd = exp.slice(6, 8);
+      const optSymbol = `${symbol}${yy}${mm}${dd}${optionType.toUpperCase().charAt(0)}${String(Math.round(strike * 1000)).padStart(8, '0')}`;
+      const url = `https://data.alpaca.markets/v1beta1/options/snapshots/${encodeURIComponent(optSymbol)}`;
+      const res = await fetch(url, { headers: { 'APCA-API-KEY-ID': alpacaApiKey, 'APCA-API-SECRET-KEY': alpacaSecretKey } });
+      if (res.ok) {
+        const json = await res.json();
+        const snap = json?.snapshot ?? json;
+        const bid = snap?.latestQuote?.bp ?? 0;
+        const ask = snap?.latestQuote?.ap ?? 0;
+        const mid = (bid + ask) / 2;
+        if (mid > 0) { console.log(`[TPSLDaemon] Alpaca OPRA price ${optSymbol}: $${mid.toFixed(2)}`); return mid; }
+      }
+    } catch (_) {}
+  }
+
+  // 2. Try Tastytrade if userId provided
   if (userId && supabase) {
     try {
       const { data: creds } = await supabase.from('broker_credentials')
@@ -74,7 +95,6 @@ async function fetchRealOptionPrice(symbol: string, strike: number, expiration: 
     } catch (_) {}
   }
   
-  // Fallback to Black-Scholes
   return 0;
 }
 
@@ -94,7 +114,7 @@ Deno.serve(async (req) => {
     // Get all open option trades
     const { data: openTrades, error: tradesError } = await supabase
       .from('options_trades')
-      .select('*, options_bots!inner(user_id, bot_interval, broker)')
+      .select('*, options_bots!inner(user_id, bot_interval, broker, take_profit_pct, stop_loss_pct, symbol_rules)')
       .eq('status', 'open');
     
     if (tradesError) throw tradesError;
@@ -103,21 +123,35 @@ Deno.serve(async (req) => {
     }
     
     console.log(`[TPSLDaemon] Checking ${openTrades.length} open trades for TP/SL`);
+
+    // Cache Alpaca creds per user
+    const alpacaCache: Record<string, { api_key?: string; secret_key?: string }> = {};
     
     for (const trade of openTrades) {
       try {
         const bot = trade.options_bots;
         const interval = bot?.bot_interval ?? '1h';
+        const userId = bot?.user_id;
+
+        // Fetch Alpaca creds once per user
+        if (userId && !alpacaCache[userId]) {
+          const { data: alpRow } = await supabase.from('broker_credentials').select('credentials').eq('user_id', userId).eq('broker', 'alpaca').maybeSingle();
+          alpacaCache[userId] = alpRow?.credentials ?? {};
+        }
+        const alpacaApiKey = alpacaCache[userId]?.api_key;
+        const alpacaSecretKey = alpacaCache[userId]?.secret_key;
         
-        // Fetch current option price
+        // Fetch current option price — Alpaca OPRA first, Tastytrade fallback
         const optionPrice = await fetchRealOptionPrice(
           trade.symbol, 
           trade.strike, 
           trade.expiration_date, 
           trade.option_type, 
           interval, 
-          bot?.user_id,
-          supabase
+          userId,
+          supabase,
+          alpacaApiKey,
+          alpacaSecretKey
         );
         
         if (!optionPrice || optionPrice <= 0) {
@@ -130,15 +164,11 @@ Deno.serve(async (req) => {
         const entry = Number(trade.premium_per_contract);
         const pnlPct = ((optionPrice - entry) / entry) * 100;
         
-        // Get bot TP/SL settings
-        const { data: botSettings } = await supabase
-          .from('options_bots')
-          .select('take_profit_pct, stop_loss_pct')
-          .eq('id', trade.bot_id)
-          .single();
-        
-        const tpPct = Number(botSettings?.take_profit_pct ?? 50);
-        const slPct = Number(botSettings?.stop_loss_pct ?? -20);
+        // Use per-symbol rules if available (Boof 8.0 adaptive), otherwise bot defaults
+        const symbolRules: any[] = bot?.symbol_rules || [];
+        const symRule = symbolRules.find((r: any) => r.symbol?.toUpperCase() === trade.symbol?.toUpperCase());
+        const tpPct = symRule?.tp ?? Number(bot?.take_profit_pct ?? 50);
+        const slPct = symRule?.sl ?? Number(bot?.stop_loss_pct ?? -20);
         
         // Check TP/SL
         const shouldTP = pnlPct >= tpPct;
