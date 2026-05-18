@@ -1500,6 +1500,21 @@
       ]);
       // Re-stamp enabled_at so 5-minute cooldown kicks in before next entry
       await sbClient.from('options_bots').update({ enabled_at: new Date().toISOString() }).eq('user_id', currentUserId).eq('enabled', true);
+      // Reset adaptive P&L data (clear adapted_at timestamps from symbol_rules)
+      const { data: stockBots } = await sbClient.from('stock_bots').select('id,symbol_rules').eq('user_id', currentUserId);
+      for (const bot of stockBots || []) {
+        if (bot.symbol_rules && bot.symbol_rules.length > 0) {
+          const resetRules = bot.symbol_rules.map(r => ({ ...r, adapted_at: null }));
+          await sbClient.from('stock_bots').update({ symbol_rules: resetRules }).eq('id', bot.id);
+        }
+      }
+      const { data: optionsBots } = await sbClient.from('options_bots').select('id,symbol_rules').eq('user_id', currentUserId);
+      for (const bot of optionsBots || []) {
+        if (bot.symbol_rules && bot.symbol_rules.length > 0) {
+          const resetRules = bot.symbol_rules.map(r => ({ ...r, adapted_at: null }));
+          await sbClient.from('options_bots').update({ symbol_rules: resetRules }).eq('id', bot.id);
+        }
+      }
       await Promise.all([loadBots(), loadOptionsBots()]);
     }
 
@@ -1533,9 +1548,14 @@
     async function resetOptionsBot(botId) {
       if (!confirm('Reset this bot? This will delete ALL trades for this bot and reset its balance to the starting amount.')) return;
       await sbClient.from('options_trades').delete().eq('bot_id', botId);
-      const { data: bot } = await sbClient.from('options_bots').select('paper_balance_start').eq('id', botId).single();
+      const { data: bot } = await sbClient.from('options_bots').select('paper_balance_start,symbol_rules').eq('id', botId).single();
       const startBal = Number(bot?.paper_balance_start ?? 100000);
-      await sbClient.from('options_bots').update({ paper_balance: startBal, enabled_at: new Date().toISOString() }).eq('id', botId);
+      // Reset adaptive P&L data
+      let resetRules = bot?.symbol_rules;
+      if (resetRules && resetRules.length > 0) {
+        resetRules = resetRules.map(r => ({ ...r, adapted_at: null }));
+      }
+      await sbClient.from('options_bots').update({ paper_balance: startBal, enabled_at: new Date().toISOString(), symbol_rules: resetRules }).eq('id', botId);
       await refreshOptBalance(botId);
       await loadBotTrades(botId);
       await loadAllTrades(allTradesPage);
@@ -2634,8 +2654,24 @@
         await sbClient.from('options_bots').update({ paper_balance: 100000 }).eq('user_id', currentUserId);
         // Re-stamp enabled_at so 5-minute cooldown kicks in before next entry
         await sbClient.from('options_bots').update({ enabled_at: new Date().toISOString() }).eq('user_id', currentUserId).eq('enabled', true);
-        
-        console.log('[ClearAllTrades] ✅ All trades cleared, balances reset');
+
+        // Reset adaptive P&L data (clear adapted_at timestamps from symbol_rules)
+        const { data: stockBots } = await sbClient.from('stock_bots').select('id,symbol_rules').eq('user_id', currentUserId);
+        for (const bot of stockBots || []) {
+          if (bot.symbol_rules && bot.symbol_rules.length > 0) {
+            const resetRules = bot.symbol_rules.map(r => ({ ...r, adapted_at: null }));
+            await sbClient.from('stock_bots').update({ symbol_rules: resetRules }).eq('id', bot.id);
+          }
+        }
+        const { data: optionsBots } = await sbClient.from('options_bots').select('id,symbol_rules').eq('user_id', currentUserId);
+        for (const bot of optionsBots || []) {
+          if (bot.symbol_rules && bot.symbol_rules.length > 0) {
+            const resetRules = bot.symbol_rules.map(r => ({ ...r, adapted_at: null }));
+            await sbClient.from('options_bots').update({ symbol_rules: resetRules }).eq('id', bot.id);
+          }
+        }
+
+        console.log('[ClearAllTrades] ✅ All trades cleared, balances reset, adaptive P&L cleared');
         
         // Refresh display
         await loadAllTrades();
@@ -3409,8 +3445,14 @@
       // Delete all trades for this bot
       const { error: delError } = await sbClient.from('trades').delete().eq('bot_id', systemId);
       if (delError) console.error('[Reset] Error deleting trades:', delError);
-      // Reset balance
-      await sbClient.from('stock_bots').update({ paper_balance: 100000, paper_balance_start: 100000 }).eq('id', systemId);
+      // Get current bot data to reset adaptive P&L
+      const { data: bot } = await sbClient.from('stock_bots').select('symbol_rules').eq('id', systemId).single();
+      let resetRules = bot?.symbol_rules;
+      if (resetRules && resetRules.length > 0) {
+        resetRules = resetRules.map(r => ({ ...r, adapted_at: null }));
+      }
+      // Reset balance and adaptive P&L
+      await sbClient.from('stock_bots').update({ paper_balance: 100000, paper_balance_start: 100000, symbol_rules: resetRules }).eq('id', systemId);
       const balEl = document.getElementById('paper-bal-' + systemId);
       if (balEl) balEl.textContent = '$100,000.00';
       const pctEl = document.getElementById('paper-pct-' + systemId);

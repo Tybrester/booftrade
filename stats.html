@@ -433,18 +433,35 @@
           .from('stock_trades')
           .delete()
           .eq('user_id', user.id);
-          
+
         const { error: optionsError } = await sbClient
           .from('options_trades')
           .delete()
           .eq('user_id', user.id);
-        
+
         if (stockError || optionsError) {
           alert('Error clearing data: ' + (stockError?.message || optionsError?.message));
           return;
         }
-        
-        alert('All trade data cleared! Statistics will reset.');
+
+        // Reset adaptive P&L data (clear adapted_at timestamps from symbol_rules)
+        const { data: stockBots } = await sbClient.from('stock_bots').select('id,symbol_rules').eq('user_id', user.id);
+        for (const bot of stockBots || []) {
+          if (bot.symbol_rules && bot.symbol_rules.length > 0) {
+            const resetRules = bot.symbol_rules.map(r => ({ ...r, adapted_at: null, tp: r.tp || 15, sl: r.sl || -5 }));
+            await sbClient.from('stock_bots').update({ symbol_rules: resetRules }).eq('id', bot.id);
+          }
+        }
+
+        const { data: optionsBots } = await sbClient.from('options_bots').select('id,symbol_rules').eq('user_id', user.id);
+        for (const bot of optionsBots || []) {
+          if (bot.symbol_rules && bot.symbol_rules.length > 0) {
+            const resetRules = bot.symbol_rules.map(r => ({ ...r, adapted_at: null, tp: r.tp || 50, sl: r.sl || -25 }));
+            await sbClient.from('options_bots').update({ symbol_rules: resetRules }).eq('id', bot.id);
+          }
+        }
+
+        alert('All trade data cleared! Adaptive P&L reset.');
         location.reload();
       } catch (err) {
         alert('Error: ' + err.message);
