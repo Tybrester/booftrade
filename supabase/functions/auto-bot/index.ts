@@ -1599,7 +1599,7 @@ function calcAdaptiveTPSL(
   const trailingSlPct = (atr * 0.5 / entryPrice) * 100;
 
   return {
-    tpPct:         Math.max(1.0, Math.min(35, tpPct)),
+    tpPct:         Math.max(1.0, Math.min(80, tpPct)),
     slPct:         Math.max(-25, Math.min(-0.5, slPct)),
     trailingSlPct: Math.max(0.3, Math.min(3.0, trailingSlPct)),
   };
