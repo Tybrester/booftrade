@@ -1383,7 +1383,9 @@ function generateSignalBoof70(
   tradeDirection = 'both',
   recentWinRate = 0.50,
   consecutiveLosses = 0,
-  isCrypto = false
+  isCrypto = false,
+  adaptiveTpsl = false,
+  recentTrades: any[] = []
 ): Boof70Result {
   const closes  = candles.map((c: any) => c.close);
   const highs   = candles.map((c: any) => c.high);
@@ -1418,7 +1420,32 @@ function generateSignalBoof70(
   }
 
   // ── 4. DYNAMIC TP/SL ─────────────────────────────────────────────────────
-  const { tpPct, slPct } = calcDynamicTPSL(regime, curPrice);
+  let { tpPct, slPct } = calcDynamicTPSL(regime, curPrice);
+
+  // ── 4b. STREAK-BASED ADAPTIVE TP/SL (if enabled) ───────────────────────────
+  if (adaptiveTpsl) {
+    // Count consecutive wins from most recent
+    const pnls = (recentTrades || []).map((t: any) => Number(t.pnl));
+    let consecutiveWins = 0;
+    for (const p of pnls) {
+      if (p > 0) consecutiveWins++;
+      else break;
+    }
+
+    // Streak adjustments: Increase TP on win streaks, tighten SL on loss streaks
+    if (consecutiveWins >= 3) {
+      // Win streak: widen TP to let winners run, keep SL
+      const winStreakMultiplier = 1 + (Math.min(consecutiveWins, 5) - 2) * 0.15; // 3 wins = 1.15x, 5+ wins = 1.45x
+      tpPct = tpPct * winStreakMultiplier;
+      console.log(`[Boof7.0] Win streak ${consecutiveWins} → TP +${((winStreakMultiplier-1)*100).toFixed(0)}% (${tpPct.toFixed(1)}%)`);
+    } else if (consecutiveLosses >= 3) {
+      // Loss streak: tighten both TP and SL to protect capital
+      const lossStreakMultiplier = Math.max(0.5, 1 - (Math.min(consecutiveLosses, 5) - 2) * 0.15); // 3 losses = 0.85x, 5+ losses = 0.55x
+      tpPct = tpPct * lossStreakMultiplier;
+      slPct = slPct * lossStreakMultiplier; // SL is negative, so this makes it closer to 0 (tighter)
+      console.log(`[Boof7.0] Loss streak ${consecutiveLosses} → TP/SL -${((1-lossStreakMultiplier)*100).toFixed(0)}% (TP ${tpPct.toFixed(1)}%, SL ${slPct.toFixed(1)}%)`);
+    }
+  }
 
   // ── 5. POSITION SIZING ────────────────────────────────────────────────────
   const positionSizePct = calcPositionSize70(regime, recentWinRate, consecutiveLosses);
@@ -2228,7 +2255,8 @@ Deno.serve(async (req) => {
             else break;
           }
           const isCryptoSym = sym.includes('-USD') || sym.includes('/USD');
-          const boof7Result = generateSignalBoof70(candles, tradeDirection, recentWinRate, consecutiveLosses, isCryptoSym);
+          const adaptiveTpsl = (bot as any).adaptive_tpsl || false;
+          const boof7Result = generateSignalBoof70(candles, tradeDirection, recentWinRate, consecutiveLosses, isCryptoSym, adaptiveTpsl, (recentTrades as any[]) || []);
           signalResult = boof7Result;
           // If kill-switch triggered, log it
           if (boof7Result.killSwitch) {
