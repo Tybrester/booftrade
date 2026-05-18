@@ -3146,20 +3146,31 @@
       const idx = container.querySelectorAll('[id^="symbol-rule-row-"]').length;
       const row = document.createElement('div');
       row.id = `symbol-rule-row-${systemId}-${idx}`;
-      row.style.cssText = 'display:flex;gap:6px;align-items:center;background:#0d0d0d;border:1px solid #1e1e1e;border-radius:5px;padding:5px 8px;';
+      row.style.cssText = 'display:flex;flex-direction:column;gap:3px;background:#0d0d0d;border:1px solid #1e1e1e;border-radius:5px;padding:5px 8px;';
       row.innerHTML = `
-        <input class="auto-input" value="${nextSym}" placeholder="SPY" style="width:58px;font-size:0.75rem;text-transform:uppercase;padding:4px 6px;" oninput="this.value=this.value.toUpperCase()" data-rule-sym/>
-        <span style="color:#555;font-size:0.7rem;">TP</span>
-        <input class="auto-input" type="number" value="50" min="1" max="500" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;" data-rule-tp/>
-        <span style="color:#555;font-size:0.7rem;">% SL</span>
-        <input class="auto-input" type="number" value="-25" min="-100" max="0" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;" data-rule-sl/>
-        <span style="color:#555;font-size:0.7rem;">%</span>
-        <select class="auto-input" style="width:60px;font-size:0.7rem;padding:4px 4px;" data-rule-dir>
-          <option value="both">Both</option>
-          <option value="long">Long</option>
-          <option value="short">Short</option>
-        </select>
-        <button onclick="this.closest('[id^=symbol-rule-row]').remove()" style="margin-left:auto;padding:1px 5px;background:rgba(255,82,82,0.08);border:1px solid rgba(255,82,82,0.2);color:#ff5252;border-radius:4px;cursor:pointer;font-size:0.7rem;font-family:inherit;">✕</button>
+        <div style="display:flex;gap:6px;align-items:flex-end;">
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <span style="color:#555;font-size:0.65rem;">SYM</span>
+            <input class="auto-input" value="${nextSym}" placeholder="SPY" style="width:52px;font-size:0.75rem;text-transform:uppercase;padding:4px 6px;" oninput="this.value=this.value.toUpperCase()" data-rule-sym/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <span style="color:#555;font-size:0.65rem;">— TP %</span>
+            <input class="auto-input" type="number" value="15" min="1" max="500" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;" data-rule-tp/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <span style="color:#555;font-size:0.65rem;">— SL %</span>
+            <input class="auto-input" type="number" value="-15" min="-100" max="0" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;" data-rule-sl/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <span style="color:#555;font-size:0.65rem;">DIR</span>
+            <select class="auto-input" style="width:60px;font-size:0.7rem;padding:4px 4px;" data-rule-dir>
+              <option value="both">Both</option>
+              <option value="long">Long</option>
+              <option value="short">Short</option>
+            </select>
+          </div>
+          <button onclick="this.closest('[id^=symbol-rule-row]').remove()" style="margin-left:auto;padding:1px 5px;background:rgba(255,82,82,0.08);border:1px solid rgba(255,82,82,0.2);color:#ff5252;border-radius:4px;cursor:pointer;font-size:0.7rem;font-family:inherit;align-self:center;">✕</button>
+        </div>
       `;
       container.appendChild(row);
     }
