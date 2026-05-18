@@ -156,6 +156,234 @@ function generateSignalRSIMACD(candles: Candle[], tradeDirection = 'both'): { si
 }
 
 // ─────────────────────────────────────────────
+// SHARED HELPERS FOR BOOF 7.0 / 8.0
+// ─────────────────────────────────────────────
+
+function b50SMA(data: number[], period: number): number[] {
+  const result: number[] = [];
+  for (let i = period - 1; i < data.length; i++) {
+    const slice = data.slice(i - period + 1, i + 1);
+    result.push(slice.reduce((a: number, b: number) => a + b, 0) / period);
+  }
+  return result;
+}
+function b50StdDev(data: number[], period: number): number {
+  if (data.length < period) return 0;
+  const slice = data.slice(-period);
+  const mean = slice.reduce((a: number, b: number) => a + b, 0) / period;
+  return Math.sqrt(slice.reduce((a: number, b: number) => a + Math.pow(b - mean, 2), 0) / period);
+}
+function b50Mean(data: number[]): number {
+  return data.length > 0 ? data.reduce((a: number, b: number) => a + b, 0) / data.length : 0;
+}
+function b50ADX(highs: number[], lows: number[], closes: number[], period: number): number {
+  const dmP: number[] = [], dmM: number[] = [], trV: number[] = [];
+  for (let i = 1; i < closes.length; i++) {
+    const up = highs[i] - highs[i-1], dn = lows[i-1] - lows[i];
+    dmP.push(up > dn && up > 0 ? up : 0);
+    dmM.push(dn > up && dn > 0 ? dn : 0);
+    trV.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i-1]), Math.abs(lows[i] - closes[i-1])));
+  }
+  if (dmP.length < period) return 25;
+  const diP = 100 * b50Mean(dmP.slice(-period)) / b50Mean(trV.slice(-period));
+  const diM = 100 * b50Mean(dmM.slice(-period)) / b50Mean(trV.slice(-period));
+  return (diP + diM) > 0 ? 100 * Math.abs(diP - diM) / (diP + diM) : 0;
+}
+
+// ─────────────────────────────────────────────
+// BOOF 7.0 + 8.0 — ADAPTIVE SCALPER ENGINE
+// ─────────────────────────────────────────────
+
+interface Boof70Regime {
+  type: 'TREND_UP' | 'TREND_DOWN' | 'RANGE' | 'HIGH_VOL' | 'LOW_VOL' | 'EXPLOSIVE';
+  adx: number; atr: number; atrPercent: number; bbWidth: number;
+  maSlope: number; volatilityPercentile: number;
+  shouldTrade: boolean; noTradeReason?: string;
+}
+
+function isNoTradeZone80(isCrypto: boolean): { skip: boolean; reason: string } {
+  const utcHour = new Date().getUTCHours();
+  if (isCrypto) {
+    if (utcHour >= 3 && utcHour < 5) return { skip: true, reason: 'Crypto dead zone: 03-05 UTC' };
+    return { skip: false, reason: '' };
+  }
+  if (utcHour < 13 || utcHour >= 20) return { skip: true, reason: `Outside NYSE hours (UTC ${utcHour}:00)` };
+  return { skip: false, reason: '' };
+}
+
+function detectRegime80(highs: number[], lows: number[], closes: number[], volumes: number[]): Boof70Regime {
+  const n = closes.length;
+  const atrVals: number[] = [];
+  for (let i = 1; i < n; i++) atrVals.push(Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1])));
+  const atr = b50Mean(atrVals.slice(-14));
+  const atrPercent = atr / closes[n-1] * 100;
+  const adx = b50ADX(highs, lows, closes, 14);
+  const sma20 = b50SMA(closes, 20);
+  const std20 = b50StdDev(closes, 20);
+  const bbUpper = sma20[sma20.length-1] + 2 * std20;
+  const bbLower = sma20[sma20.length-1] - 2 * std20;
+  const bbWidth = sma20[sma20.length-1] > 0 ? (bbUpper - bbLower) / sma20[sma20.length-1] : 0;
+  const maRecent = sma20[sma20.length-1];
+  const maOld = sma20[Math.max(0, sma20.length-6)];
+  const maSlope = maOld > 0 ? (maRecent - maOld) / maOld * 100 : 0;
+  const atrHistory: number[] = [];
+  for (let i = Math.max(1, n-50); i < n; i++) atrHistory.push(Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1])));
+  const atrMed = b50Mean(atrHistory);
+  const volPercentile = atrMed > 0 ? Math.min(1, atr / (atrMed * 2)) : 0.5;
+  const avgVol = b50Mean(volumes.slice(-20));
+  const curVol = volumes[n-1] || 0;
+  const relVol = avgVol > 0 ? curVol / avgVol : 1;
+  let type: Boof70Regime['type'];
+  let shouldTrade = true; let noTradeReason: string | undefined;
+  const isExplosive = bbWidth > 0.08 && adx > 35 && volPercentile > 0.85;
+  const isHighVol   = volPercentile > 0.75 || atrPercent > 3.5;
+  const isLowVol    = volPercentile < 0.20 && bbWidth < 0.02;
+  const isTrending  = adx > 22 && Math.abs(maSlope) > 0.15;
+  const isRange     = adx < 18 && bbWidth < 0.04;
+  if (isExplosive)             { type = 'EXPLOSIVE'; }
+  else if (isHighVol && !isTrending) { type = 'HIGH_VOL'; shouldTrade = false; noTradeReason = `HIGH_VOL chop`; }
+  else if (isLowVol)           { type = 'LOW_VOL';  shouldTrade = false; noTradeReason = `LOW_VOL dead zone`; }
+  else if (isTrending)         { type = maSlope > 0 ? 'TREND_UP' : 'TREND_DOWN'; }
+  else if (isRange)            { type = 'RANGE'; }
+  else                         { type = maSlope > 0 ? 'TREND_UP' : 'TREND_DOWN'; }
+  if (relVol < 0.4 && avgVol > 0) { shouldTrade = false; noTradeReason = `Low volume`; }
+  return { type, adx, atr, atrPercent, bbWidth, maSlope, volatilityPercentile: volPercentile, shouldTrade, noTradeReason };
+}
+
+function runRegimeStrategy80(regime: Boof70Regime, candles: any[], tradeDirection: string): { signal: 'buy'|'sell'|'none'; reason: string } {
+  const closes  = candles.map((c: any) => c.close);
+  const highs   = candles.map((c: any) => c.high);
+  const lows    = candles.map((c: any) => c.low);
+  const volumes = candles.map((c: any) => c.volume || 1);
+  const n = closes.length; const i = n - 2;
+  const rsi = calcRSI(closes, 14); const curRSI = rsi[rsi.length-2] ?? 50;
+  const atrVals: number[] = [];
+  for (let j = 1; j < n; j++) atrVals.push(Math.max(highs[j]-lows[j], Math.abs(highs[j]-closes[j-1]), Math.abs(lows[j]-closes[j-1])));
+  const atrNow = b50Mean(atrVals.slice(-14)); const atrAvg = b50Mean(atrVals.slice(-34,-14));
+  const candleBody = Math.abs(closes[i] - candles[i].open);
+  const candleBodyPct = candles[i].open > 0 ? candleBody / candles[i].open * 100 : 0;
+  const atrSpike = atrNow > atrAvg * 2.0;
+  const volAvg = b50Mean(volumes.slice(-20));
+  const volSpike = volumes[i] > volAvg * 1.8;
+  const bearFlush = closes[i] < candles[i].open && candleBodyPct > 0.12 && atrSpike && volSpike;
+  const bullFlush = closes[i] > candles[i].open && candleBodyPct > 0.12 && atrSpike && volSpike;
+  const ema21arr = calcEMA(closes, 21);
+  const ema21Now = ema21arr[ema21arr.length-1]; const ema21Prev = ema21arr[ema21arr.length-2];
+  const prevBearFlush = i >= 1 && closes[i-1] < candles[i-1].open && (candles[i-1].open > 0 ? Math.abs(closes[i-1]-candles[i-1].open)/candles[i-1].open*100 : 0) > 0.10;
+  const recoveryBuy = curRSI < 30 && closes[i] > ema21Now && closes[i-1] <= ema21Prev && (prevBearFlush || curRSI < 25);
+  if (regime.type === 'TREND_UP' || regime.type === 'TREND_DOWN' || regime.type === 'EXPLOSIVE') {
+    const ema9 = calcEMA(closes, 9);
+    const { hist } = calcMACD(closes, 12, 26, 9);
+    const histLast = hist[hist.length-1] ?? 0; const histPrev = hist[hist.length-2] ?? 0;
+    const emaUp = ema9[ema9.length-1] > ema21Now;
+    const emaCrossedUp   = ema9[ema9.length-2] <= ema21Prev && emaUp;
+    const emaCrossedDown = ema9[ema9.length-2] >= ema21Prev && !emaUp;
+    const macdBull = histLast > 0 && histLast > histPrev; const macdBear = histLast < 0 && histLast < histPrev;
+    const contBull = emaUp && macdBull && closes[i] > closes[i-1];
+    const contBear = !emaUp && macdBear && closes[i] < closes[i-1];
+    const rsiBuyOk = curRSI > 40 && curRSI < 75; const rsiSellOk = curRSI < 60 && curRSI > 25;
+    const ema50arr = calcEMA(closes, 50);
+    const sellSlopeOk = !(ema50arr[ema50arr.length-1] > ema50arr[Math.max(0, ema50arr.length-4)]);
+    let signal: 'buy'|'sell'|'none' = 'none'; let reason = '';
+    if      (recoveryBuy && tradeDirection !== 'short')                          { signal = 'buy';  reason = `Boof7.0 RECOVERY_BUY [${regime.type}] rsi=${curRSI.toFixed(1)}`; }
+    else if (bearFlush && regime.type !== 'TREND_UP' && sellSlopeOk)            { signal = 'sell'; reason = `Boof7.0 FLUSH_BEAR [${regime.type}]`; }
+    else if (bullFlush && regime.type !== 'TREND_DOWN')                          { signal = 'buy';  reason = `Boof7.0 FLUSH_BULL [${regime.type}]`; }
+    else if ((emaCrossedUp  || contBull) && regime.type !== 'TREND_DOWN' && rsiBuyOk)               { signal = 'buy';  reason = `Boof7.0 BREAKOUT [${regime.type}] rsi=${curRSI.toFixed(1)}`; }
+    else if ((emaCrossedDown || contBear) && regime.type !== 'TREND_UP'  && rsiSellOk && sellSlopeOk) { signal = 'sell'; reason = `Boof7.0 BREAKOUT [${regime.type}] rsi=${curRSI.toFixed(1)}`; }
+    else { reason = `Boof7.0 NO_ENTRY [${regime.type}] rsi=${curRSI.toFixed(1)}`; }
+    if (tradeDirection === 'long'  && signal === 'sell') signal = 'none';
+    if (tradeDirection === 'short' && signal === 'buy')  signal = 'none';
+    return { signal, reason };
+  } else if (regime.type === 'RANGE') {
+    const sma20 = b50SMA(closes, 20); const std20 = b50StdDev(closes, 20);
+    const bbUpper = sma20[sma20.length-1] + 2 * std20; const bbLower = sma20[sma20.length-1] - 2 * std20;
+    let signal: 'buy'|'sell'|'none' = 'none';
+    if      (recoveryBuy && tradeDirection !== 'short')                   signal = 'buy';
+    else if (closes[i] <= bbLower * 1.005 && curRSI < 40)                signal = 'buy';
+    else if (closes[i] >= bbUpper * 0.995 && curRSI > 60)                signal = 'sell';
+    if (tradeDirection === 'long'  && signal === 'sell') signal = 'none';
+    if (tradeDirection === 'short' && signal === 'buy')  signal = 'none';
+    return { signal, reason: `Boof7.0 MEAN_REV [RANGE] rsi=${curRSI.toFixed(1)}` };
+  }
+  return { signal: 'none', reason: `Boof7.0 NO_STRATEGY regime=${regime.type}` };
+}
+
+function calcPositionSize80(regime: Boof70Regime, recentWinRate: number, consecutiveLosses: number): number {
+  const base: Record<string, number> = { TREND_UP:1.0, TREND_DOWN:1.0, RANGE:0.75, HIGH_VOL:0.5, LOW_VOL:0.5, EXPLOSIVE:0.6 };
+  let size = base[regime.type] || 1.0;
+  if (recentWinRate >= 0.60) size *= 1.25; else if (recentWinRate < 0.40) size *= 0.60;
+  if (consecutiveLosses >= 5) size *= 0.25; else if (consecutiveLosses >= 3) size *= 0.50;
+  if (regime.volatilityPercentile > 0.80) size *= 0.70;
+  return Math.max(0.10, Math.min(1.50, size));
+}
+
+function calcChoppinessIndex80(highs: number[], lows: number[], closes: number[], period = 14): number {
+  const n = closes.length;
+  if (n < period + 1) return 50;
+  let atrSum = 0;
+  for (let i = n - period; i < n; i++) atrSum += Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1]));
+  const hh = Math.max(...highs.slice(n - period));
+  const ll = Math.min(...lows.slice(n - period));
+  const range = hh - ll;
+  if (range === 0) return 50;
+  return Math.max(0, Math.min(100, 100 * Math.log10(atrSum / range) / Math.log10(period)));
+}
+
+interface Boof80Context {
+  recentTrades: { reason: string; pnlPct: number; regime: string }[];
+  consecutiveLosses: number; recentWinRate: number; isCrypto: boolean;
+}
+
+function generateSignalBoof80(candles: any[], tradeDirection = 'both', context: Boof80Context = { recentTrades:[], consecutiveLosses:0, recentWinRate:0.5, isCrypto:false }): { signal:'buy'|'sell'|'none'; price:number; trend:number; ema:number; adx:number; reason:string; regime:string; dynamicTP:number; dynamicSL:number; positionSizePct:number; killSwitch:boolean; killReason?:string; choppiness:number; patternWeight:number; adaptedFromHistory:boolean } {
+  const closes  = candles.map((c: any) => c.close);
+  const highs   = candles.map((c: any) => c.high);
+  const lows    = candles.map((c: any) => c.low);
+  const volumes = candles.map((c: any) => c.volume || 1000000);
+  const n = closes.length;
+  const curPrice = closes[n-2] ?? closes[n-1];
+  const { recentTrades, consecutiveLosses, recentWinRate, isCrypto } = context;
+  const noResult = (reason: string, kill = false, killReason?: string) => ({ signal: 'none' as const, price: curPrice, trend: 0, ema: curPrice, adx: 0, reason, regime: 'NONE', dynamicTP: 0, dynamicSL: 0, positionSizePct: 0, killSwitch: kill, killReason, choppiness: 50, patternWeight: 1.0, adaptedFromHistory: false });
+  if (n < 50)                        return noResult('Boof 8.0: insufficient data');
+  if (consecutiveLosses >= 7)        return noResult(`Kill-switch: ${consecutiveLosses} consecutive losses`, true, `${consecutiveLosses} consecutive losses`);
+  const timeCheck = isNoTradeZone80(isCrypto);
+  if (timeCheck.skip)                return noResult(`Boof 8.0: ${timeCheck.reason}`);
+  const regime = detectRegime80(highs, lows, closes, volumes);
+  if (!regime.shouldTrade)           return noResult(`Boof 8.0: skipping — ${regime.noTradeReason}`);
+  const ci = calcChoppinessIndex80(highs, lows, closes, 14);
+  const marketState = ci > 62 ? 'CHOPPY' : ci < 38 ? 'TRENDING' : 'MIXED';
+  if (ci > 72 && regime.type !== 'EXPLOSIVE') return noResult(`Boof 8.0: too choppy CI=${ci.toFixed(1)}`);
+  const { signal, reason } = runRegimeStrategy80(regime, candles, tradeDirection);
+  if (signal === 'none')             return noResult(`Boof 8.0 NO_ENTRY [${regime.type}] CI=${ci.toFixed(1)}`);
+  // Pattern weight scoring
+  const patternMatch = reason.match(/Boof7\.0\s+(\w+)/);
+  const patternLabel = patternMatch?.[1] ?? 'UNKNOWN';
+  const patternKey   = `${regime.type}:${patternLabel}`;
+  const matched = recentTrades.filter((t: { reason: string; regime: string }) => t.reason?.includes(patternLabel) && t.regime === regime.type);
+  const pWins   = matched.filter((t: { pnlPct: number }) => t.pnlPct > 0).length;
+  const pLosses = matched.filter((t: { pnlPct: number }) => t.pnlPct <= 0).length;
+  const patternWinRate = matched.length > 0 ? pWins / matched.length : 0.5;
+  const avgWin  = pWins   > 0 ? matched.filter((t: { pnlPct: number }) => t.pnlPct > 0).reduce((a: number, t: { pnlPct: number }) => a + t.pnlPct, 0) / pWins : 0;
+  const avgLoss = pLosses > 0 ? matched.filter((t: { pnlPct: number }) => t.pnlPct <= 0).reduce((a: number, t: { pnlPct: number }) => a + t.pnlPct, 0) / pLosses : 0;
+  const expectancy = patternWinRate * avgWin + (1 - patternWinRate) * avgLoss;
+  const patternWeight = Math.max(0.5, Math.min(1.5, 1.0 + expectancy / 4));
+  const adaptedFromHistory = recentTrades.length >= 2;
+  if (patternWeight < 0.65 && recentTrades.length >= 5) return noResult(`Boof 8.0: pattern ${patternKey} underperforming (${pWins}W/${pLosses}L)`);
+  // Adaptive TP/SL
+  const baseM: Record<string, { tp: number; sl: number }> = { TREND_UP:{tp:3.0,sl:1.2}, TREND_DOWN:{tp:3.0,sl:1.2}, RANGE:{tp:1.5,sl:1.0}, HIGH_VOL:{tp:4.0,sl:2.0}, LOW_VOL:{tp:1.0,sl:0.8}, EXPLOSIVE:{tp:5.0,sl:2.5} };
+  const m = baseM[regime.type] || baseM['TREND_UP'];
+  const ciScale     = ci > 62 ? 0.70 : ci < 38 ? 1.30 : 1.0 + (50 - ci) / 100;
+  const volScale    = regime.volatilityPercentile > 0.75 ? 1.20 : regime.volatilityPercentile < 0.25 ? 0.85 : 1.0;
+  const wrScale     = recentWinRate > 0.60 ? 1.15 : recentWinRate < 0.35 ? 0.75 : 1.0;
+  const tpPct       = Math.max(1.0, Math.min(35,  ((curPrice + regime.atr * m.tp * ciScale * volScale * patternWeight * wrScale) - curPrice) / curPrice * 100));
+  const slPct       = Math.max(-25, Math.min(-0.5, ((curPrice - regime.atr * m.sl * ciScale * volScale) - curPrice) / curPrice * 100));
+  const trailPct    = Math.max(0.3, Math.min(3.0, regime.atr * 0.5 / curPrice * 100));
+  const positionSizePct = calcPositionSize80(regime, recentWinRate, consecutiveLosses);
+  const ema21val    = calcEMA(closes, 21);
+  const fullReason  = `${reason} | CI=${ci.toFixed(1)}[${marketState}] pw=${patternWeight.toFixed(2)}(${pWins}W/${pLosses}L) tp=+${tpPct.toFixed(1)}% sl=${slPct.toFixed(1)}% trail=${trailPct.toFixed(1)}% adapted=${adaptedFromHistory}`;
+  return { signal, price: curPrice, trend: regime.maSlope > 0 ? 1 : -1, ema: ema21val[ema21val.length-1] ?? curPrice, adx: regime.adx, reason: fullReason, regime: regime.type, dynamicTP: tpPct, dynamicSL: slPct, positionSizePct, killSwitch: false, choppiness: ci, patternWeight, adaptedFromHistory };
+}
+
+// ─────────────────────────────────────────────
 // BOOF 2.0 ML-STYLE INDICATOR
 // ─────────────────────────────────────────────
 
@@ -2193,8 +2421,8 @@ Deno.serve(async (req) => {
                   pnlPct:  Number(t.pnl) || 0,
                   regime:  t.regime  || 'UNKNOWN',
                 }));
-                const pnls80  = trades80.map(t => t.pnlPct);
-                const wins80  = pnls80.filter(p => p > 0).length;
+                const pnls80  = trades80.map((t: { pnlPct: number }) => t.pnlPct);
+                const wins80  = pnls80.filter((p: number) => p > 0).length;
                 const winRate80 = pnls80.length > 0 ? wins80 / pnls80.length : 0.5;
                 let consLosses80 = 0;
                 for (const p of pnls80) { if (p <= 0) consLosses80++; else break; }
