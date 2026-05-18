@@ -1383,9 +1383,7 @@ function generateSignalBoof70(
   tradeDirection = 'both',
   recentWinRate = 0.50,
   consecutiveLosses = 0,
-  isCrypto = false,
-  adaptiveTpsl = false,
-  recentTrades: any[] = []
+  isCrypto = false
 ): Boof70Result {
   const closes  = candles.map((c: any) => c.close);
   const highs   = candles.map((c: any) => c.high);
@@ -1420,32 +1418,7 @@ function generateSignalBoof70(
   }
 
   // ── 4. DYNAMIC TP/SL ─────────────────────────────────────────────────────
-  let { tpPct, slPct } = calcDynamicTPSL(regime, curPrice);
-
-  // ── 4b. STREAK-BASED ADAPTIVE TP/SL (if enabled) ───────────────────────────
-  if (adaptiveTpsl) {
-    // Count consecutive wins from most recent
-    const pnls = (recentTrades || []).map((t: any) => Number(t.pnl));
-    let consecutiveWins = 0;
-    for (const p of pnls) {
-      if (p > 0) consecutiveWins++;
-      else break;
-    }
-
-    // Streak adjustments: Increase TP on win streaks, tighten SL on loss streaks
-    if (consecutiveWins >= 3) {
-      // Win streak: widen TP to let winners run, keep SL
-      const winStreakMultiplier = 1 + (Math.min(consecutiveWins, 5) - 2) * 0.15; // 3 wins = 1.15x, 5+ wins = 1.45x
-      tpPct = tpPct * winStreakMultiplier;
-      console.log(`[Boof7.0] Win streak ${consecutiveWins} → TP +${((winStreakMultiplier-1)*100).toFixed(0)}% (${tpPct.toFixed(1)}%)`);
-    } else if (consecutiveLosses >= 3) {
-      // Loss streak: tighten both TP and SL to protect capital
-      const lossStreakMultiplier = Math.max(0.5, 1 - (Math.min(consecutiveLosses, 5) - 2) * 0.15); // 3 losses = 0.85x, 5+ losses = 0.55x
-      tpPct = tpPct * lossStreakMultiplier;
-      slPct = slPct * lossStreakMultiplier; // SL is negative, so this makes it closer to 0 (tighter)
-      console.log(`[Boof7.0] Loss streak ${consecutiveLosses} → TP/SL -${((1-lossStreakMultiplier)*100).toFixed(0)}% (TP ${tpPct.toFixed(1)}%, SL ${slPct.toFixed(1)}%)`);
-    }
-  }
+  const { tpPct, slPct } = calcDynamicTPSL(regime, curPrice);
 
   // ── 5. POSITION SIZING ────────────────────────────────────────────────────
   const positionSizePct = calcPositionSize70(regime, recentWinRate, consecutiveLosses);
@@ -1493,6 +1466,7 @@ interface Boof80Context {
   recentTrades: { reason: string; pnlPct: number; regime: string }[];  // last 20 trades
   consecutiveLosses: number;
   recentWinRate: number;
+  expiryType?: string;  // '0dte', 'weekly', 'monthly' - for adaptive TP/SL
   isCrypto: boolean;
 }
 
@@ -1577,44 +1551,70 @@ function scorePatternWeight(
 
 // ── Adaptive TP/SL ────────────────────────────────────────────────────────────
 // Combines regime base, choppiness index, volatility percentile, and pattern weight
+// 0DTE AGGRESSIVE MODE: Targets 50-100% moves when trending, skips chop entirely
 function calcAdaptiveTPSL(
   regime: Boof70Regime,
   entryPrice: number,
   ci: number,                 // Choppiness Index 0-100
   patternWeight: number,      // 0.5-1.5 from pattern scorer
-  recentWinRate: number       // 0-1
-): { tpPct: number; slPct: number; trailingSlPct: number } {
-  // Base ATR multipliers per regime (same as 7.0)
-  const baseMultipliers: Record<string, { tp: number; sl: number }> = {
-    TREND_UP:   { tp: 3.0, sl: 1.2 },
-    TREND_DOWN: { tp: 3.0, sl: 1.2 },
-    RANGE:      { tp: 1.5, sl: 1.0 },
-    HIGH_VOL:   { tp: 4.0, sl: 2.0 },
-    LOW_VOL:    { tp: 1.0, sl: 0.8 },
-    EXPLOSIVE:  { tp: 5.0, sl: 2.5 },
-  };
+  recentWinRate: number,      // 0-1
+  expiryType: string = 'weekly'  // '0dte', 'weekly', 'monthly'
+): { tpPct: number; slPct: number; trailingSlPct: number; shouldTrade: boolean; reason?: string } {
+  const is0DTE = expiryType === '0dte';
+
+  // ── 0DTE AGGRESSIVE: Skip entirely if choppy ──
+  // 0DTE theta burn is brutal - only trade clean trends
+  if (is0DTE && ci > 55) {
+    return { tpPct: 0, slPct: 0, trailingSlPct: 0, shouldTrade: false, reason: `0DTE skip: too choppy (CI=${ci.toFixed(1)})` };
+  }
+
+  // Base ATR multipliers per regime
+  // 0DTE AGGRESSIVE: Much wider TP multipliers for bigger moves
+  const baseMultipliers: Record<string, { tp: number; sl: number }> = is0DTE
+    ? {  // 0DTE AGGRESSIVE MODE - targeting 50-100% moves
+        TREND_UP:   { tp: 8.0, sl: 1.5 },   // Was 3.0 → now 8.0 (2.6x wider)
+        TREND_DOWN: { tp: 8.0, sl: 1.5 },
+        RANGE:      { tp: 4.0, sl: 1.2 },   // Skip range in 0DTE (below)
+        HIGH_VOL:   { tp: 10.0, sl: 2.5 }, // Volatile = bigger moves possible
+        LOW_VOL:    { tp: 6.0, sl: 1.0 },
+        EXPLOSIVE:  { tp: 12.0, sl: 3.0 }, // EXPLOSIVE = 100%+ target
+      }
+    : {  // Normal mode (weekly/monthly)
+        TREND_UP:   { tp: 3.0, sl: 1.2 },
+        TREND_DOWN: { tp: 3.0, sl: 1.2 },
+        RANGE:      { tp: 1.5, sl: 1.0 },
+        HIGH_VOL:   { tp: 4.0, sl: 2.0 },
+        LOW_VOL:    { tp: 1.0, sl: 0.8 },
+        EXPLOSIVE:  { tp: 5.0, sl: 2.5 },
+      };
+
+  // 0DTE: Skip RANGE regime entirely (not worth theta burn)
+  if (is0DTE && regime.type === 'RANGE') {
+    return { tpPct: 0, slPct: 0, trailingSlPct: 0, shouldTrade: false, reason: '0DTE skip: range-bound market' };
+  }
+
   const m = baseMultipliers[regime.type] || baseMultipliers['TREND_UP'];
 
-  // ── CI adjustment: choppy = tighter TP + tighter SL ──
-  // CI 62+ (choppy): scale down to 0.7x. CI 38- (trending): scale up to 1.3x
-  const ciScale = ci > 62 ? 0.70 : ci < 38 ? 1.30 : 1.0 + (50 - ci) / 100;
+  // ── CI adjustment ──
+  // 0DTE: More aggressive scaling - trending markets get bigger TP
+  const ciScale = is0DTE
+    ? (ci > 50 ? 0.60 : ci < 35 ? 1.50 : 1.0)  // Wider range for 0DTE
+    : (ci > 62 ? 0.70 : ci < 38 ? 1.30 : 1.0 + (50 - ci) / 100);
 
   // ── Volatility percentile adjustment ──
-  // High vol = wider stops needed, low vol = tighter
-  const volScale = regime.volatilityPercentile > 0.75 ? 1.20
-                 : regime.volatilityPercentile < 0.25 ? 0.85
+  const volScale = regime.volatilityPercentile > 0.75 ? 1.25
+                 : regime.volatilityPercentile < 0.25 ? 0.80
                  : 1.0;
 
-  // ── Win rate adjustment (recent performance) ──
-  // Hot streak (>60%) → slightly wider TP to let winners run
-  // Cold streak (<35%) → cut TP, keep SL same (protect capital)
-  const winRateTpScale = recentWinRate > 0.60 ? 1.15
-                       : recentWinRate < 0.35 ? 0.75
-                       : 1.0;
+  // ── Win rate adjustment ──
+  // 0DTE: Hot streak = even wider TP (let winners run to 100%+)
+  const winRateTpScale = is0DTE
+    ? (recentWinRate > 0.55 ? 1.30 : recentWinRate < 0.30 ? 0.60 : 1.0)
+    : (recentWinRate > 0.60 ? 1.15 : recentWinRate < 0.35 ? 0.75 : 1.0);
 
   // ── Combine all factors ──
   const tpMultiplier = m.tp * ciScale * volScale * patternWeight * winRateTpScale;
-  const slMultiplier = m.sl * ciScale * volScale;  // SL doesn't scale with pattern weight
+  const slMultiplier = m.sl * ciScale * volScale;
 
   const atr = regime.atr;
   const tpPrice = entryPrice + atr * tpMultiplier;
@@ -1622,13 +1622,20 @@ function calcAdaptiveTPSL(
   const tpPct   = ((tpPrice - entryPrice) / entryPrice) * 100;
   const slPct   = ((slPrice - entryPrice) / entryPrice) * 100;
 
-  // Trailing SL: once +1.5% in profit, trail at 0.5x ATR behind price
-  const trailingSlPct = (atr * 0.5 / entryPrice) * 100;
+  // 0DTE Trailing SL: trail tighter once +25% in profit (protect gains)
+  const trailingSlPct = is0DTE
+    ? (atr * 1.0 / entryPrice) * 100  // Wider initial trail for 0DTE volatility
+    : (atr * 0.5 / entryPrice) * 100;
+
+  // Cap TP: 0DTE max 150% (aggressive), normal max 80%
+  const maxTp = is0DTE ? 150 : 80;
+  const minTp = is0DTE ? 25 : 1.0;  // 0DTE minimum 25% target
 
   return {
-    tpPct:         Math.max(1.0, Math.min(80, tpPct)),
-    slPct:         Math.max(-25, Math.min(-0.5, slPct)),
-    trailingSlPct: Math.max(0.3, Math.min(3.0, trailingSlPct)),
+    tpPct:         Math.max(minTp, Math.min(maxTp, tpPct)),
+    slPct:         Math.max(-30, Math.min(-0.5, slPct)),  // 0DTE can handle slightly wider SL
+    trailingSlPct: Math.max(0.5, Math.min(5.0, trailingSlPct)),
+    shouldTrade:   true,
   };
 }
 
@@ -1691,7 +1698,12 @@ function generateSignalBoof80(
   }
 
   // ── 5. ADAPTIVE TP/SL ─────────────────────────────────────────────────────
-  const { tpPct, slPct, trailingSlPct } = calcAdaptiveTPSL(regime, curPrice, ci, patternWeight, recentWinRate);
+  const { tpPct, slPct, trailingSlPct, shouldTrade: tpSlOk, reason: tpSlReason } = calcAdaptiveTPSL(regime, curPrice, ci, patternWeight, recentWinRate, context.expiryType || 'weekly');
+
+  // 0DTE: Skip if adaptive TP/SL says conditions aren't right
+  if (!tpSlOk) {
+    return noResult(`Boof 8.0: ${tpSlReason}`, false, tpSlReason);
+  }
 
   // ── 6. POSITION SIZING (reuse 7.0) ────────────────────────────────────────
   const positionSizePct = calcPositionSize70(regime, recentWinRate, consecutiveLosses);
@@ -2255,8 +2267,7 @@ Deno.serve(async (req) => {
             else break;
           }
           const isCryptoSym = sym.includes('-USD') || sym.includes('/USD');
-          const adaptiveTpsl = (bot as any).adaptive_tpsl || false;
-          const boof7Result = generateSignalBoof70(candles, tradeDirection, recentWinRate, consecutiveLosses, isCryptoSym, adaptiveTpsl, (recentTrades as any[]) || []);
+          const boof7Result = generateSignalBoof70(candles, tradeDirection, recentWinRate, consecutiveLosses, isCryptoSym);
           signalResult = boof7Result;
           // If kill-switch triggered, log it
           if (boof7Result.killSwitch) {
@@ -2268,6 +2279,50 @@ Deno.serve(async (req) => {
             settings.dollarAmount = Math.round(settings.dollarAmount * boof7Result.positionSizePct);
             console.log(`[Boof7.0] Position size: ${(boof7Result.positionSizePct*100).toFixed(0)}% → $${originalAmount} → $${settings.dollarAmount}`);
             await supabase.from('stock_bots').update({ last_position_size_pct: boof7Result.positionSizePct }).eq('id', bot.id as string);
+          }
+        } else if (botSignal === 'boof80') {
+          // BOOF 8.0 - Adaptive AI Scalper with 0DTE aggressive mode support
+          // Fetch last 20 closed trades with regime info for pattern learning
+          const { data: recentTradesData } = await supabase
+            .from('trades')
+            .select('pnl, reason')
+            .eq('bot_id', bot.id)
+            .eq('status', 'closed')
+            .not('pnl', 'is', null)
+            .order('closed_at', { ascending: false })
+            .limit(20);
+          const recentTrades = (recentTradesData || []).map((t: any) => {
+            const reasonMatch = t.reason?.match(/\[([^\]]+)\]/);
+            const regime = reasonMatch ? reasonMatch[1] : 'UNKNOWN';
+            return { reason: t.reason || '', pnlPct: Number(t.pnl) || 0, regime };
+          });
+          const pnls = recentTrades.map((t: any) => t.pnlPct);
+          const wins = pnls.filter((p: number) => p > 0).length;
+          const recentWinRate = pnls.length > 0 ? wins / pnls.length : 0.5;
+          let consecutiveLosses = 0;
+          for (const p of pnls) {
+            if (p <= 0) consecutiveLosses++;
+            else break;
+          }
+          const isCryptoSym = sym.includes('-USD') || sym.includes('/USD');
+          const expiryType: string = (bot.bot_expiry_type as string) || 'weekly';
+          const boof8Result = generateSignalBoof80(candles, tradeDirection, {
+            recentTrades,
+            consecutiveLosses,
+            recentWinRate,
+            expiryType,
+            isCrypto: isCryptoSym
+          });
+          signalResult = boof8Result;
+          if (boof8Result.killSwitch) {
+            console.log(`[Boof8.0] Kill-switch for bot ${bot.id}: ${boof8Result.killReason}`);
+          }
+          // Apply adaptive position sizing
+          if (boof8Result.positionSizePct && boof8Result.positionSizePct > 0) {
+            const originalAmount = settings.dollarAmount;
+            settings.dollarAmount = Math.round(settings.dollarAmount * boof8Result.positionSizePct);
+            console.log(`[Boof8.0] Position size: ${(boof8Result.positionSizePct*100).toFixed(0)}% → $${originalAmount} → $${settings.dollarAmount}`);
+            await supabase.from('stock_bots').update({ last_position_size_pct: boof8Result.positionSizePct }).eq('id', bot.id as string);
           }
         } else {
           signalResult = generateSignal(candles, overrideSettings);

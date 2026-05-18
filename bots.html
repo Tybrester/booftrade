@@ -1259,7 +1259,7 @@
               </div>
               <div class="auto-settings-row">
                 <span>Signal</span>
-                <select class="auto-input" id="osig-${b.id}" style="width:220px;" onchange="toggleOptionsAdaptiveTpsl('${b.id}')">
+                <select class="auto-input" id="osig-${b.id}" style="width:220px;">
                   <option value="supertrend" ${(b.bot_signal||'supertrend')==='supertrend'?'selected':''}>Boof 1.0 (Adaptive SuperTrend + EMA50 + ADX)</option>
                   <option value="boof20" ${b.bot_signal==='boof20'?'selected':''}>Boof 2.0 (ML-Style Predictive)</option>
                   <option value="boof30" ${b.bot_signal==='boof30'?'selected':''}>Boof 3.0 (KMeans Regime Detection)</option>
@@ -1270,14 +1270,6 @@
                   <option value="test_always_buy" ${b.bot_signal==='test_always_buy'?'selected':''}>🧪 TEST: Always Buy</option>
                   <option value="test_always_sell" ${b.bot_signal==='test_always_sell'?'selected':''}>🧪 TEST: Always Sell</option>
                 </select>
-              </div>
-              <div class="auto-settings-row" id="opt-adaptive-tpsl-row-${b.id}" style="${b.bot_signal==='boof70'?'':'display:none;'}align-items:center;">
-                <span>Adaptive TP/SL (Streak-Based)</span>
-                <label class="big-toggle-switch" style="transform:scale(0.8);">
-                  <input type="checkbox" id="opt-adaptive-tpsl-${b.id}" ${b.adaptive_tpsl?'checked':''}/>
-                  <span class="big-toggle-slider"></span>
-                </label>
-                <span style="font-size:0.7rem;color:#555;margin-left:8px;">Auto-adjust on win/loss streaks</span>
               </div>
               <div class="auto-settings-row">
                 <span>Trend Filter</span>
@@ -1451,10 +1443,9 @@
       const tradingStyle = document.getElementById('ostyle-' + botId)?.value || 'scalper';
       const trendFilter = document.getElementById('otrend-' + botId)?.value || 'none';
       const adxThreshold = parseInt(document.getElementById('oadx-' + botId)?.value) || 20;
-      const adaptiveTpsl = document.getElementById('opt-adaptive-tpsl-' + botId)?.checked || false;
-      console.log(`[SaveOptions] Bot ${botId}: sym=${sym}, $=${dol}, int=${int}, runInt=${runInt}min, dir=${dir}, signal=${botSignal}, scan=${scanMode}, style=${tradingStyle}, trend=${trendFilter}, adx=${adxThreshold}, adaptive=${adaptiveTpsl}`);
+      console.log(`[SaveOptions] Bot ${botId}: sym=${sym}, $=${dol}, int=${int}, runInt=${runInt}min, dir=${dir}, signal=${botSignal}, scan=${scanMode}, style=${tradingStyle}, trend=${trendFilter}, adx=${adxThreshold}`);
       const otmStrikes = parseInt(document.getElementById(`ootm-${botId}`)?.value ?? '0');
-      const { error } = await sbClient.from('options_bots').update({ bot_symbol: sym, bot_dollar_amount: dol, bot_interval: int, run_interval_min: runInt, market_open_delay_min: startDelay, bot_expiry_type: expiry, bot_trade_direction: dir, bot_strike_mode: strikeMode, bot_manual_strike: strikeMode === 'manual' ? manualStrike : null, bot_scan_mode: scanMode, take_profit_pct: tp, stop_loss_pct: sl, symbol_rules: optSymbolRules, max_loss_dollar: null, max_profit_dollar: null, broker, bot_signal: botSignal, bot_otm_strikes: otmStrikes, trading_style: tradingStyle, trend_filter: trendFilter, bot_adx_threshold: adxThreshold, adaptive_tpsl: adaptiveTpsl, updated_at: new Date().toISOString() }).eq('id', botId);
+      const { error } = await sbClient.from('options_bots').update({ bot_symbol: sym, bot_dollar_amount: dol, bot_interval: int, run_interval_min: runInt, market_open_delay_min: startDelay, bot_expiry_type: expiry, bot_trade_direction: dir, bot_strike_mode: strikeMode, bot_manual_strike: strikeMode === 'manual' ? manualStrike : null, bot_scan_mode: scanMode, take_profit_pct: tp, stop_loss_pct: sl, symbol_rules: optSymbolRules, max_loss_dollar: null, max_profit_dollar: null, broker, bot_signal: botSignal, bot_otm_strikes: otmStrikes, trading_style: tradingStyle, trend_filter: trendFilter, bot_adx_threshold: adxThreshold, updated_at: new Date().toISOString() }).eq('id', botId);
       const r = document.getElementById('opt-run-result-' + botId);
       if (error) {
         console.error('[SaveOptions] Error:', error);
@@ -2996,7 +2987,7 @@
               </div>
               <div class="auto-settings-row">
                 <span>Signal</span>
-                <select class="auto-input" id="sig-${s.id}" style="width:220px;" onchange="toggleAdaptiveTpsl('${s.id}')">
+                <select class="auto-input" id="sig-${s.id}" style="width:220px;">
                   <option value="supertrend" ${(s.bot_signal||'supertrend')==='supertrend'?'selected':''}>Boof 1.0 (Adaptive SuperTrend + EMA50 + ADX)</option>
                   <option value="boof20" ${s.bot_signal==='boof20'?'selected':''}>Boof 2.0 (ML-Style Predictive)</option>
                   <option value="boof30" ${s.bot_signal==='boof30'?'selected':''}>Boof 3.0 (KMeans Regime Detection)</option>
@@ -3005,14 +2996,6 @@
                   <option value="boof70" ${s.bot_signal==='boof70'?'selected':''}>Boof 7.0 (Adaptive Scalper — Regime Aware)</option>
                   <option value="boof80" ${s.bot_signal==='boof80'?'selected':''}>Boof 8.0 (AI Adaptive — Choppiness + Pattern Learning)</option>
                 </select>
-              </div>
-              <div class="auto-settings-row" id="adaptive-tpsl-row-${s.id}" style="${s.bot_signal==='boof70'?'':'display:none;'}align-items:center;">
-                <span>Adaptive TP/SL (Streak-Based)</span>
-                <label class="big-toggle-switch" style="transform:scale(0.8);">
-                  <input type="checkbox" id="adaptive-tpsl-${s.id}" ${s.adaptive_tpsl?'checked':''}/>
-                  <span class="big-toggle-slider"></span>
-                </label>
-                <span style="font-size:0.7rem;color:#555;margin-left:8px;">Auto-adjust on win/loss streaks</span>
               </div>
               <div class="auto-settings-row" id="trend-row-${s.id}">
                 <span>Trend Filter</span>
@@ -3141,7 +3124,6 @@
       const limitTimeMin = parseInt(document.getElementById('limit-time-' + systemId)?.value) || 2;
       const takeProfitPct = parseFloat(document.getElementById('tp-' + systemId)?.value) || 50;
       const stopLossPct = parseFloat(document.getElementById('sl-' + systemId)?.value) || -20;
-      const adaptiveTpsl = document.getElementById('adaptive-tpsl-' + systemId)?.checked || false;
       // Collect per-symbol rules
       const rulesContainer = document.getElementById('symbol-rules-' + systemId);
       const symbolRules = [];
@@ -3176,7 +3158,6 @@
         limit_time_min: limitTimeMin,
         take_profit_pct: takeProfitPct,
         stop_loss_pct: stopLossPct,
-        adaptive_tpsl: adaptiveTpsl,
         symbol_rules: symbolRules,
         updated_at: new Date().toISOString()
       }).eq('id', systemId);
@@ -3360,24 +3341,6 @@
       }
       if (checkbox && timeRow) {
         timeRow.style.display = checkbox.checked ? 'flex' : 'none';
-      }
-    }
-
-    function toggleAdaptiveTpsl(systemId) {
-      const signalSelect = document.getElementById('sig-' + systemId);
-      const adaptiveRow = document.getElementById('adaptive-tpsl-row-' + systemId);
-      if (signalSelect && adaptiveRow) {
-        const isBoof70 = signalSelect.value === 'boof70';
-        adaptiveRow.style.display = isBoof70 ? 'flex' : 'none';
-      }
-    }
-
-    function toggleOptionsAdaptiveTpsl(botId) {
-      const signalSelect = document.getElementById('osig-' + botId);
-      const adaptiveRow = document.getElementById('opt-adaptive-tpsl-row-' + botId);
-      if (signalSelect && adaptiveRow) {
-        const isBoof70 = signalSelect.value === 'boof70';
-        adaptiveRow.style.display = isBoof70 ? 'flex' : 'none';
       }
     }
 
