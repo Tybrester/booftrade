@@ -1286,6 +1286,22 @@ function runRegimeStrategy(
   const bearFlush     = closes[i] < candles[i].open && candleBodyPct > 0.12 && atrSpike && volSpike;
   const bullFlush     = closes[i] > candles[i].open && candleBodyPct > 0.12 && atrSpike && volSpike;
 
+  // ── RECOVERY MODE: oversold bounce after flush (below 15m gate) ──
+  // Previous candle was a big flush down, RSI now oversold, price crossing back above EMA21
+  const ema21Early   = calcEMA(closes, 21);
+  const ema21Now     = ema21Early[ema21Early.length-1];
+  const ema21Prev    = ema21Early[ema21Early.length-2];
+  const prevBearFlush = ((): boolean => {
+    if (i < 1) return false;
+    const prevBody = Math.abs(closes[i-1] - candles[i-1].open);
+    const prevBodyPct = candles[i-1].open > 0 ? prevBody / candles[i-1].open * 100 : 0;
+    return closes[i-1] < candles[i-1].open && prevBodyPct > 0.10;
+  })();
+  const recoveryBuy = curRSI < 33 &&
+    closes[i] > ema21Now &&
+    closes[i-1] <= ema21Prev &&
+    (prevBearFlush || curRSI < 28);  // either prev flush or deeply oversold
+
   if (regime.type === 'TREND_UP' || regime.type === 'TREND_DOWN' || regime.type === 'EXPLOSIVE') {
     // ── BREAKOUT / MOMENTUM STRATEGY ──
     const ema9  = calcEMA(closes, 9);
@@ -1312,7 +1328,10 @@ function runRegimeStrategy(
     let reason = '';
 
     // Flush detector overrides — catches sudden moves before ADX confirms
-    if (bearFlush && regime.type !== 'TREND_UP') {
+    if (recoveryBuy && tradeDirection !== 'short') {
+      signal = 'buy';
+      reason = `Boof7.0 RECOVERY_BUY [${regime.type}] rsi=${curRSI.toFixed(1)} ema21cross prevFlush=${prevBearFlush}`;
+    } else if (bearFlush && regime.type !== 'TREND_UP') {
       signal = 'sell';
       reason = `Boof7.0 FLUSH_BEAR [${regime.type}] body=${candleBodyPct.toFixed(2)}% atr=${atrNow.toFixed(3)} vol=${(volumes[i]/volAvg).toFixed(1)}x`;
     } else if (bullFlush && regime.type !== 'TREND_DOWN') {
@@ -1340,7 +1359,8 @@ function runRegimeStrategy(
     const bbLower = sma20[sma20.length-1] - 2 * std20;
 
     let signal: 'buy' | 'sell' | 'none' = 'none';
-    if      (closes[i] <= bbLower * 1.005 && curRSI < 40) signal = 'buy';
+    if      (recoveryBuy && tradeDirection !== 'short') signal = 'buy';
+    else if (closes[i] <= bbLower * 1.005 && curRSI < 40) signal = 'buy';
     else if (closes[i] >= bbUpper * 0.995 && curRSI > 60) signal = 'sell';
 
     if (tradeDirection === 'long'  && signal === 'sell') signal = 'none';
