@@ -2171,11 +2171,11 @@ Deno.serve(async (req) => {
         if (allOpen && allOpen.length > 0) {
           for (const open of allOpen) {
             try {
-              // Minimum hold time (paper trading only): skip TP/SL for trades less than 2 minutes old
-              // Paper uses Black-Scholes which can misfire immediately — live trades use real prices so no hold needed
+              // Minimum hold time (paper trading only): skip TP/SL for very new trades
+              // 1m bots use 30s hold, others use 2 minutes — avoids Black-Scholes misfires at entry
               if (bot.broker === 'paper') {
                 const tradeAgeMs = Date.now() - new Date(open.created_at).getTime();
-                const minHoldMs = 2 * 60 * 1000; // 2 minutes
+                const minHoldMs = settings.interval === '1m' ? 30 * 1000 : 2 * 60 * 1000;
                 if (tradeAgeMs < minHoldMs) {
                   console.log(`[OptionsBot] SKIP TP/SL for ${open.symbol} — paper trade only ${Math.round(tradeAgeMs/1000)}s old, min hold=${minHoldMs/1000}s`);
                   continue;
