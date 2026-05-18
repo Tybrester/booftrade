@@ -1286,21 +1286,28 @@
                   ${(()=>{
                     const rules = b.symbol_rules || [];
                     if (!rules.length) return '<div style="font-size:0.72rem;color:#444;padding:4px 0;">No rules — click + Add Symbol to set TP/SL per symbol</div>';
-                    return rules.map((r,i) => `
-                      <div id="symbol-rule-row-opt-${b.id}-${i}" style="display:flex;gap:6px;align-items:center;background:#0d0d0d;border:1px solid #1e1e1e;border-radius:5px;padding:5px 8px;">
-                        <input class="auto-input" value="${r.symbol}" placeholder="SPY" style="width:58px;font-size:0.75rem;text-transform:uppercase;padding:4px 6px;" oninput="this.value=this.value.toUpperCase()" data-rule-sym/>
-                        <span style="color:#555;font-size:0.7rem;">TP</span>
-                        <input class="auto-input" type="number" value="${r.tp}" min="1" max="500" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;" data-rule-tp/>
-                        <span style="color:#555;font-size:0.7rem;">% SL</span>
-                        <input class="auto-input" type="number" value="${r.sl}" min="-100" max="0" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;" data-rule-sl/>
-                        <span style="color:#555;font-size:0.7rem;">%</span>
-                        <select class="auto-input" style="width:60px;font-size:0.7rem;padding:4px 4px;" data-rule-dir>
-                          <option value="both" ${r.dir==='both'?'selected':''}>Both</option>
-                          <option value="long" ${r.dir==='long'?'selected':''}>Long</option>
-                          <option value="short" ${r.dir==='short'?'selected':''}>Short</option>
-                        </select>
-                        <button onclick="removeSymbolRule('opt-${b.id}',${i})" style="margin-left:auto;padding:1px 5px;background:rgba(255,82,82,0.08);border:1px solid rgba(255,82,82,0.2);color:#ff5252;border-radius:4px;cursor:pointer;font-size:0.7rem;font-family:inherit;">✕</button>
-                      </div>`).join('');
+                    return rules.map((r,i) => {
+                      const isAdapted = !!r.adapted_at;
+                      const adaptedAgo = isAdapted ? (() => { const s = Math.round((Date.now()-new Date(r.adapted_at).getTime())/1000); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s/60)}m ago` : `${Math.floor(s/3600)}h ago`; })() : '';
+                      return `
+                      <div id="symbol-rule-row-opt-${b.id}-${i}" style="display:flex;flex-direction:column;gap:3px;background:#0d0d0d;border:1px solid ${isAdapted?'rgba(0,212,255,0.25)':'#1e1e1e'};border-radius:5px;padding:5px 8px;">
+                        ${isAdapted ? `<div style="font-size:0.65rem;color:#00d4ff;display:flex;align-items:center;gap:4px;margin-bottom:1px;"><span style="animation:pulse 2s infinite;">⚡</span> AI Adapted ${adaptedAgo} &nbsp;·&nbsp; TP <span style="color:#00e676;">▲${r.tp}%</span> &nbsp; SL <span style="color:#ff5252;">▼${r.sl}%</span></div>` : ''}
+                        <div style="display:flex;gap:6px;align-items:center;">
+                          <input class="auto-input" value="${r.symbol}" placeholder="SPY" style="width:58px;font-size:0.75rem;text-transform:uppercase;padding:4px 6px;" oninput="this.value=this.value.toUpperCase()" data-rule-sym/>
+                          <span style="color:#555;font-size:0.7rem;">TP</span>
+                          <input class="auto-input" type="number" value="${r.tp}" min="1" max="500" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;${isAdapted?'border-color:rgba(0,230,118,0.35);':''}" data-rule-tp/>
+                          <span style="color:#555;font-size:0.7rem;">% SL</span>
+                          <input class="auto-input" type="number" value="${r.sl}" min="-100" max="0" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;${isAdapted?'border-color:rgba(255,82,82,0.35);':''}" data-rule-sl/>
+                          <span style="color:#555;font-size:0.7rem;">%</span>
+                          <select class="auto-input" style="width:60px;font-size:0.7rem;padding:4px 4px;" data-rule-dir>
+                            <option value="both" ${r.dir==='both'?'selected':''}>Both</option>
+                            <option value="long" ${r.dir==='long'?'selected':''}>Long</option>
+                            <option value="short" ${r.dir==='short'?'selected':''}>Short</option>
+                          </select>
+                          <button onclick="removeSymbolRule('opt-${b.id}',${i})" style="margin-left:auto;padding:1px 5px;background:rgba(255,82,82,0.08);border:1px solid rgba(255,82,82,0.2);color:#ff5252;border-radius:4px;cursor:pointer;font-size:0.7rem;font-family:inherit;">✕</button>
+                        </div>
+                      </div>`;
+                    }).join('');
                   })()}
                 </div>
               </div>

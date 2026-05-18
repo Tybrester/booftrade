@@ -2438,6 +2438,23 @@ Deno.serve(async (req) => {
                   continue;
                 }
                 sigResult = { signal: boof80result.signal, price: boof80result.price, reason: boof80result.reason, trend: boof80result.trend, ema: boof80result.ema, adx: boof80result.adx };
+                // Write adaptive TP/SL back to symbol_rules so UI reflects live values
+                if (boof80result.signal !== 'none' && boof80result.dynamicTP > 0) {
+                  const currentRules: Array<{symbol:string;tp:number;sl:number;dir?:string;adapted_at?:string}> = (bot.symbol_rules as any) || [];
+                  const ruleIdx = currentRules.findIndex((r: any) => r.symbol?.toUpperCase() === sym.toUpperCase());
+                  const adaptedRule = {
+                    symbol:     sym,
+                    tp:         Math.round(boof80result.dynamicTP * 10) / 10,
+                    sl:         Math.round(boof80result.dynamicSL * 10) / 10,
+                    dir:        ruleIdx >= 0 ? (currentRules[ruleIdx].dir || 'both') : 'both',
+                    adapted_at: new Date().toISOString(),
+                  };
+                  const updatedRules = ruleIdx >= 0
+                    ? currentRules.map((r: any, idx: number) => idx === ruleIdx ? adaptedRule : r)
+                    : [...currentRules, adaptedRule];
+                  await supabase.from('options_bots').update({ symbol_rules: updatedRules }).eq('id', bot.id as string);
+                  console.log(`[Boof8.0] Adaptive TP/SL written: ${sym} tp=${adaptedRule.tp}% sl=${adaptedRule.sl}% ci=${boof80result.choppiness.toFixed(1)} pw=${boof80result.patternWeight.toFixed(2)}`);
+                }
               } else if (botSignal === 'test_always_buy') {
                 // TEST MODE: Always fires BUY signal to test trade execution
                 const lastClose = candles[candles.length - 1].close;
