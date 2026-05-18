@@ -852,15 +852,13 @@ async function fetchSpotPrice(symbol: string, alpacaApiKey?: string, alpacaSecre
   return null;
 }
 
-async function fetchCandles(symbol: string, interval = '1h', bars = 150): Promise<Candle[]> {
+async function fetchCandles(symbol: string, interval = '1h', bars = 150, alpacaApiKey?: string, alpacaSecretKey?: string): Promise<Candle[]> {
   const isCrypto  = symbol.includes('-USD') || symbol.includes('/USD');
   const isFutures = symbol.includes('=F');
 
   // ── ALPACA FIRST (stocks only, lower latency, no rate limits) ──
   if (!isCrypto && !isFutures) {
     try {
-      const alpacaApiKey    = Deno.env.get('ALPACA_API_KEY') || '';
-      const alpacaSecretKey = Deno.env.get('ALPACA_SECRET_KEY') || '';
       if (alpacaApiKey && alpacaSecretKey) {
         const alpacaIntervalMap: Record<string, string> = {
           '1m': '1Min', '5m': '5Min', '15m': '15Min', '30m': '30Min',
@@ -2116,7 +2114,7 @@ Deno.serve(async (req) => {
         const tradedThisRun = new Set<string>();
         for (const sym of symbolList) {
           try {
-              const candles = await fetchCandles(sym, settings.interval, 150);
+              const candles = await fetchCandles(sym, settings.interval, 150, alpacaCreds?.api_key, alpacaCreds?.secret_key);
               if (candles.length < 60) { results.push({ bot_id: bot.id, symbol: sym, status: 'skipped', reason: 'Not enough candle data' }); continue; }
 
               // INDEPENDENT MODE: Always generate our own signal based on bot_signal setting
