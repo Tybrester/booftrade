@@ -2442,10 +2442,13 @@ Deno.serve(async (req) => {
                 if (boof80result.signal !== 'none' && boof80result.dynamicTP > 0) {
                   const currentRules: Array<{symbol:string;tp:number;sl:number;dir?:string;adapted_at?:string}> = (bot.symbol_rules as any) || [];
                   const ruleIdx = currentRules.findIndex((r: any) => r.symbol?.toUpperCase() === sym.toUpperCase());
+                  // Hard SL floor by expiry — 0DTE can't go past -15%, 1DTE -20%, weekly+ -25%
+                  const slFloor = settings.expiryType === '0dte' ? -15 : settings.expiryType === '1dte' ? -20 : -25;
+                  const adaptedSL = Math.max(slFloor, boof80result.dynamicSL);
                   const adaptedRule = {
                     symbol:     sym,
                     tp:         Math.round(boof80result.dynamicTP * 10) / 10,
-                    sl:         Math.round(boof80result.dynamicSL * 10) / 10,
+                    sl:         Math.round(adaptedSL * 10) / 10,
                     dir:        ruleIdx >= 0 ? (currentRules[ruleIdx].dir || 'both') : 'both',
                     adapted_at: new Date().toISOString(),
                   };
