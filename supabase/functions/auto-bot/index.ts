@@ -1640,17 +1640,26 @@ function calcAdaptiveTPSL(
     ? (atr * 1.0 / entryPrice) * 100  // Wider initial trail for 0DTE volatility
     : (atr * 0.5 / entryPrice) * 100;
 
-  // Cap TP: Lowered thresholds by 20% across the board
+  // Cap TP: Center on 50% for average day (CI ~40), scale from 20% to 100%
   const maxTp = is0DTE
-    ? (ci < 20 ? 180 : ci < 30 ? 120 : ci < 40 ? 100 : 80)  // 0DTE: 80-180% based on trend
-    : (ci < 25 ? 100 : 60);  // Weekly: up to 100% in strong trends
+    ? (ci < 20 ? 100      // Extreme trend: 100%
+       : ci < 30 ? 80      // Strong trend: 80%
+       : ci < 40 ? 65      // Moderate trend: 65%
+       : ci < 50 ? 50      // Average day: 50% (target)
+       : ci < 55 ? 35      // Weak trend: 35%
+       : 25)               // Choppy: 25%
+    : (ci < 25 ? 80 : 50); // Weekly: 50-80%
   const minTp = is0DTE
-    ? (ci > 50 ? 12 : ci > 40 ? 16 : 28)  // 0DTE min: 12-28% based on chop
-    : (ci > 70 ? 0.4 : 0.8);  // Weekly min: 0.4-0.8%
+    ? (ci > 55 ? 20       // Choppy min: 20%
+       : ci > 50 ? 25      // Weak min: 25%
+       : ci > 40 ? 40      // Below average: 40%
+       : 45)               // Strong trend min: 45%
+    : (ci > 70 ? 20 : 40); // Weekly min: 20-40%
 
   return {
     tpPct:         Math.max(minTp, Math.min(maxTp, tpPct)),
-    slPct:         Math.max(-30, Math.min(-0.5, slPct)),  // 0DTE can handle slightly wider SL
+    // SL centered on -20% for 0DTE, scales -10% to -30%
+    slPct:         Math.max(is0DTE ? -30 : -25, Math.min(is0DTE ? -15 : -10, slPct)),
     trailingSlPct: Math.max(0.5, Math.min(5.0, trailingSlPct)),
     shouldTrade:   true,
   };
