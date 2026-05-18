@@ -1907,8 +1907,10 @@ Deno.serve(async (req) => {
       // INDEPENDENT MODE: Options bot runs on its own schedule, scans symbols like stock bot
       console.log(`[OptionsBot] Running bot "${bot.name}" independently`);
       
-      // Check if bot should run based on run_interval_min
-      const runIntervalMin = (bot.run_interval_min as number) ?? 15;
+      // Derive run interval from trading style (bot_interval) — no separate UI setting needed
+      const intervalToMinutes: Record<string, number> = { '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240 };
+      const botInterval = (bot.bot_interval as string) || '5m';
+      const runIntervalMin = (bot.run_interval_min as number) ?? intervalToMinutes[botInterval] ?? 5;
       const lastRunAt = bot.last_run_at ? new Date(bot.last_run_at as string) : null;
       const minutesSinceLastRun = lastRunAt ? (now.getTime() - lastRunAt.getTime()) / (1000 * 60) : Infinity;
       
