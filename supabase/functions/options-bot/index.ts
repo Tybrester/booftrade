@@ -866,7 +866,7 @@ async function fetchCandles(symbol: string, interval = '1h', bars = 150, alpacaA
         };
         const timeframe = alpacaIntervalMap[interval] || '5Min';
         const limit = Math.min(bars + 10, 1000);
-        const url = `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${timeframe}&limit=${limit}&adjustment=raw&feed=iex`;
+        const url = `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${timeframe}&limit=${limit}&adjustment=raw&feed=sip`;
         const res = await fetch(url, {
           headers: { 'APCA-API-KEY-ID': alpacaApiKey, 'APCA-API-SECRET-KEY': alpacaSecretKey }
         });
