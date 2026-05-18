@@ -3145,9 +3145,10 @@
     function addSymbolRule(systemId) {
       const container = document.getElementById('symbol-rules-' + systemId);
       if (!container) return;
-      // Remove "no overrides" placeholder if present
-      const placeholder = container.querySelector('div:not([id])');
-      if (placeholder) placeholder.remove();
+      // Remove all non-rule children (placeholders, ghost divs)
+      Array.from(container.children).forEach(el => {
+        if (!el.id || !el.id.startsWith('symbol-rule-row-')) el.remove();
+      });
       // Show per-symbol section
       const section = document.getElementById('per-sym-section-' + systemId) || document.getElementById('oper-sym-section-' + systemId);
       if (section) section.style.display = 'block';
