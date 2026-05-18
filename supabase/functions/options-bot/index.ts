@@ -2440,8 +2440,8 @@ Deno.serve(async (req) => {
                   continue;
                 }
                 sigResult = { signal: boof80result.signal, price: boof80result.price, reason: boof80result.reason, trend: boof80result.trend, ema: boof80result.ema, adx: boof80result.adx };
-                // Write adaptive TP/SL back to symbol_rules so UI reflects live values
-                if (boof80result.signal !== 'none' && boof80result.dynamicTP > 0) {
+                // Write adaptive TP/SL back to symbol_rules so UI reflects live values (even if no signal)
+                if (boof80result.dynamicTP > 0) {
                   const currentRules: Array<{symbol:string;tp:number;sl:number;dir?:string;adapted_at?:string}> = (bot.symbol_rules as any) || [];
                   const ruleIdx = currentRules.findIndex((r: any) => r.symbol?.toUpperCase() === sym.toUpperCase());
                   // Hard SL floor by expiry — 0DTE can't go past -15%, 1DTE -20%, weekly+ -25%
