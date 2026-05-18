@@ -2362,20 +2362,20 @@ Deno.serve(async (req) => {
               } else if (botSignal === 'boof50') {
                 // Boof 5.0: Six-Factor Quant Model with optional trend filter
                 const boof50TrendFilter = bot.trend_filter as string || 'none';
-                const tfCandles = boof50TrendFilter !== 'none' ? await fetchCandles(sym, boof50TrendFilter, 100) : undefined;
+                const tfCandles = boof50TrendFilter !== 'none' ? await fetchCandles(sym, boof50TrendFilter, 100, alpacaCreds?.api_key, alpacaCreds?.secret_key) : undefined;
                 sigResult = generateSignalBoof50(candles, settings.tradeDirection, tfCandles);
               } else if (botSignal === 'boof60') {
                 // Boof 6.0: Multi-Timeframe Scalping System
                 // Fetches 1h (trend lock), 15m (EMA confirm), 1m (VWAP) in parallel
                 const [b60_1h, b60_15m, b60_1m] = await Promise.all([
-                  fetchCandles(sym, '1h', 50).catch(() => [] as Candle[]),
-                  fetchCandles(sym, '15m', 50).catch(() => [] as Candle[]),
-                  fetchCandles(sym, '1m', 390).catch(() => [] as Candle[]),
+                  fetchCandles(sym, '1h', 50, alpacaCreds?.api_key, alpacaCreds?.secret_key).catch(() => [] as Candle[]),
+                  fetchCandles(sym, '15m', 50, alpacaCreds?.api_key, alpacaCreds?.secret_key).catch(() => [] as Candle[]),
+                  fetchCandles(sym, '1m', 390, alpacaCreds?.api_key, alpacaCreds?.secret_key).catch(() => [] as Candle[]),
                 ]);
                 sigResult = generateSignalBoof60(candles, b60_1h, b60_15m, b60_1m, settings.tradeDirection);
               } else if (botSignal === 'longer_swing') {
                 // For 30m swing, fetch more candles and use Boof 3.0 for regime detection
-                const swingCandles = await fetchCandles(sym, '30m', 200);
+                const swingCandles = await fetchCandles(sym, '30m', 200, alpacaCreds?.api_key, alpacaCreds?.secret_key);
                 if (swingCandles.length < 60) {
                   results.push({ bot_id: bot.id, symbol: sym, status: 'skipped', reason: 'Not enough 30m candle data' });
                   continue;
@@ -2500,7 +2500,7 @@ Deno.serve(async (req) => {
                 const gateInterval = settings.expiryType === '0dte' ? '15m' : '1h';
                 let emaVal = 0;
                 try {
-                  const gateCandles = await fetchCandles(sym, gateInterval, 40);
+                  const gateCandles = await fetchCandles(sym, gateInterval, 40, alpacaCreds?.api_key, alpacaCreds?.secret_key);
                   if (gateCandles.length >= 20) {
                     const ema20 = calcEMA(gateCandles.map(c => c.close), 20);
                     emaVal = ema20[ema20.length - 1] ?? 0;
@@ -2537,7 +2537,7 @@ Deno.serve(async (req) => {
                   // VWAP 1m filter — uses today's 1m candles
                   if (trendFilter === 'vwap_1m') {
                     const vwapCandles: Candle[] = await Promise.race([
-                      fetchCandles(sym, '1m', 390),
+                      fetchCandles(sym, '1m', 390, alpacaCreds?.api_key, alpacaCreds?.secret_key),
                       new Promise<Candle[]>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
                     ]) as Candle[];
                     if (vwapCandles.length < 30) {
@@ -2569,7 +2569,7 @@ Deno.serve(async (req) => {
                   const candlesToFetch = is1mEma150 ? 300 : 120;
                   console.log(`[OptionsBot] ${sym} fetching ${tfToFetch} candles for EMA${emaPeriod} trend check...`);
                   const higherTfCandles: Candle[] = await Promise.race([
-                    fetchCandles(sym, tfToFetch, candlesToFetch),
+                    fetchCandles(sym, tfToFetch, candlesToFetch, alpacaCreds?.api_key, alpacaCreds?.secret_key),
                     new Promise<Candle[]>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
                   ]) as Candle[];
                   console.log(`[OptionsBot] ${sym} fetched ${higherTfCandles.length} ${tfToFetch} candles`);
