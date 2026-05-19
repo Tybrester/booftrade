@@ -6,12 +6,20 @@
   <title>Backtest - BoofTrade</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0a0a0a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+    :root { --surface:#111; --border:#1e1e1e; --accent:#00e676; --muted:#666; --text:#e0e0e0; }
+    body { background: #0a0a0a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+    .layout { display: flex; flex: 1; overflow: hidden; }
+    .sidebar { width: 230px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 16px 0; height: calc(100vh - 64px); position: sticky; top: 0; overflow-y: auto; }
+    .sidebar-section { padding: 6px 12px; font-size: 0.7rem; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 12px; }
+    .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-left: 3px solid transparent; font-size: 0.9rem; font-weight: 500; color: var(--muted); text-decoration: none; transition: background 0.15s, color 0.15s; }
+    .sidebar-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+    .sidebar-item.active { background: rgba(0,230,118,0.08); color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+    main { flex: 1; overflow-y: auto; }
+    @media (max-width: 900px) { .sidebar { display: none; } }
     .header { background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%); padding: 20px 30px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
     .header h1 { font-size: 1.5rem; background: linear-gradient(90deg, #00d4ff, #00ff88); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
     .nav-links a { color: #888; text-decoration: none; margin-left: 20px; font-size: 0.9rem; transition: color 0.2s; }
     .nav-links a:hover { color: #fff; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 30px; }
     .controls { background: #111; border: 1px solid #222; border-radius: 14px; padding: 24px; margin-bottom: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; align-items: end; }
     .control-group label { display: block; font-size: 0.7rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
     .control-group input, .control-group select { width: 100%; background: #0d0d0d; border: 1px solid #2a2a2a; border-radius: 8px; color: #e0e0e0; padding: 9px 12px; font-size: 0.85rem; font-family: inherit; }
@@ -61,14 +69,27 @@
 <body>
 <div class="header">
   <h1>⚡ Backtest Engine</h1>
-  <div class="nav-links">
-    <a href="bots.html">Bots</a>
-    <a href="stats.html">Stats</a>
-    <a href="index.html">Dashboard</a>
-  </div>
 </div>
 
-<div class="container">
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-section">Menu</div>
+    <a href="dashboard.html" class="sidebar-item">Dashboard</a>
+    <a href="trades.html" class="sidebar-item">Trades</a>
+    <a href="paper-market.html" class="sidebar-item">Paper Market</a>
+    <a href="alerts.html" class="sidebar-item">Systems</a>
+    <a href="accounts.html" class="sidebar-item">Accounts</a>
+    <a href="brokers.html" class="sidebar-item">Brokers</a>
+    <div class="sidebar-section" style="margin-top:24px;">Bots</div>
+    <a href="bots.html" class="sidebar-item">Bots</a>
+    <a href="stats.html" class="sidebar-item">Statistics</a>
+    <a href="backtest.html" class="sidebar-item active">Backtest</a>
+    <div class="sidebar-section" style="margin-top:24px;">Help</div>
+    <a href="how-it-works.html" class="sidebar-item">How it Works</a>
+  </aside>
+
+  <main>
+  <div class="container" style="max-width:1200px;margin:0 auto;padding:24px;">
 
   <div class="controls">
     <div class="control-group">
@@ -945,5 +966,8 @@ async function runBacktest() {
   }
 }
 </script>
+  </div><!-- /container -->
+  </main>
+</div><!-- /layout -->
 </body>
 </html>
