@@ -2889,7 +2889,12 @@ Deno.serve(async (req) => {
                 continue;
               }
 
-              const contracts = Math.max(1, Math.floor(dollarAmount / (premium * 100)));
+              const contracts = Math.floor(dollarAmount / (premium * 100));
+              if (contracts < 1) {
+                console.log(`[OptionsBot] BLOCKED: ${sym} 1 contract @ $${(premium*100).toFixed(0)} exceeds budget $${dollarAmount} — skipping`);
+                results.push({ bot_id: bot.id, symbol: sym, status: 'skipped', reason: `${sym} cheapest option $${(premium*100).toFixed(0)} exceeds budget $${dollarAmount} — increase bot dollar amount` });
+                continue;
+              }
               const totalCost = contracts * premium * 100;
               console.log(`[OptionsBot] Selected: ${sym} ${optionType} $${strike} @ $${premium.toFixed(2)}/contract x${contracts} = $${totalCost.toFixed(2)} (budget=$${dollarAmount} spot=$${spotPrice.toFixed(2)})`);
 
