@@ -21,8 +21,8 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     #app { display: none; flex-direction: column; height: 100vh; overflow: hidden; }
 
-    nav { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 64px; background: rgba(10,10,10,0.95); border-bottom: 1px solid var(--border); flex-shrink: 0; position: sticky; top: 0; z-index: 100; }
-    .logo { font-size: 1.4rem; font-weight: 900; letter-spacing: -0.02em; color: var(--text); text-decoration: none; }
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 72px; background: rgba(10,10,10,0.95); border-bottom: 1px solid var(--border); flex-shrink: 0; position: sticky; top: 0; z-index: 100; }
+    .logo { font-size: 1.6rem; font-weight: 900; letter-spacing: -0.02em; color: var(--text); text-decoration: none; }
     .logo span { color: var(--accent); }
     .nav-right { display: flex; align-items: center; gap: 16px; }
     .user-dropdown { position: relative; }
@@ -35,7 +35,7 @@
     .user-dropdown-item:hover { background: rgba(255,255,255,0.05); }
 
     .layout { display: flex; flex: 1; overflow: hidden; }
-    .sidebar { width: 260px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 16px 0; height: calc(100vh - 64px); position: sticky; top: 64px; overflow-y: auto; }
+    .sidebar { width: 260px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 16px 0; height: calc(100vh - 72px); position: sticky; top: 72px; overflow-y: auto; }
     .sidebar-section { padding: 8px 16px; font-size: 0.72rem; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 14px; }
     .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-left: 3px solid transparent; font-size: 1rem; font-weight: 500; color: var(--muted); text-decoration: none; transition: background 0.15s, color 0.15s; position: relative; border: none; background: none; font-family: inherit; width: 100%; text-align: left; cursor: pointer; }
     .sidebar-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
