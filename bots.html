@@ -1303,7 +1303,10 @@
                       const adaptedAgo = isAdapted ? (() => { const s = Math.round((Date.now()-new Date(r.adapted_at).getTime())/1000); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s/60)}m ago` : `${Math.floor(s/3600)}h ago`; })() : '';
                       return `
                       <div id="symbol-rule-row-opt-${b.id}-${i}" style="display:flex;flex-direction:column;gap:3px;background:#0d0d0d;border:1px solid ${isAdapted?'rgba(0,212,255,0.25)':'#1e1e1e'};border-radius:5px;padding:5px 8px;">
-                        ${isAdapted ? `<div style="font-size:0.65rem;color:#00d4ff;display:flex;align-items:center;gap:4px;margin-bottom:1px;"><span style="animation:pulse 2s infinite;">⚡</span> AI Adapted ${adaptedAgo}</div>` : ''}
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+                          ${isAdapted ? `<div style="font-size:0.65rem;color:#00d4ff;display:flex;align-items:center;gap:4px;"><span style="animation:pulse 2s infinite;">⚡</span> AI Adapted ${adaptedAgo}</div>` : '<div></div>'}
+                          <button onclick="removeSymbolRule('opt-${b.id}',${i})" style="padding:1px 5px;background:rgba(255,82,82,0.08);border:1px solid rgba(255,82,82,0.2);color:#ff5252;border-radius:4px;cursor:pointer;font-size:0.7rem;font-family:inherit;">✕</button>
+                        </div>
                         <div style="display:flex;gap:6px;align-items:flex-end;">
                           <div style="display:flex;flex-direction:column;gap:2px;">
                             <span style="color:#555;font-size:0.65rem;">SYM</span>
@@ -1325,7 +1328,6 @@
                               <option value="short" ${r.dir==='short'?'selected':''}>Short</option>
                             </select>
                           </div>
-                          <button onclick="removeSymbolRule('opt-${b.id}',${i})" style="margin-left:auto;padding:1px 5px;background:rgba(255,82,82,0.08);border:1px solid rgba(255,82,82,0.2);color:#ff5252;border-radius:4px;cursor:pointer;font-size:0.7rem;font-family:inherit;align-self:center;">✕</button>
                         </div>
                       </div>`;
                     }).join('');
