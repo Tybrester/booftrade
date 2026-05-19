@@ -2864,14 +2864,12 @@ Deno.serve(async (req) => {
                   break;
                 }
 
-                // Track closest-to-budget strike (highest premium that still fits within budget)
-                if (candidatePremium * 100 <= dollarAmount) {
+                // Track closest-to-budget strike (highest premium within budget + $50 buffer)
+                if (candidatePremium * 100 <= dollarAmount + 50) {
                   if (!premium || candidatePremium > premium) {
                     strike = candidateStrike;
                     premium = candidatePremium;
                   }
-                  // Keep walking — there may be a closer-to-budget strike further OTM
-                  // (premiums decrease as we go OTM, so first fit IS the closest — stop here)
                   break;
                 }
 
