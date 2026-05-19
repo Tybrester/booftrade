@@ -1303,7 +1303,7 @@
                       const adaptedAgo = isAdapted ? (() => { const s = Math.round((Date.now()-new Date(r.adapted_at).getTime())/1000); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s/60)}m ago` : `${Math.floor(s/3600)}h ago`; })() : '';
                       return `
                       <div id="symbol-rule-row-opt-${b.id}-${i}" style="display:flex;flex-direction:column;gap:3px;background:#0d0d0d;border:1px solid ${isAdapted?'rgba(0,212,255,0.25)':'#1e1e1e'};border-radius:5px;padding:5px 8px;">
-                        ${isAdapted ? `<div style="font-size:0.65rem;color:#00d4ff;display:flex;align-items:center;gap:4px;margin-bottom:1px;"><span style="animation:pulse 2s infinite;">⚡</span> AI Adapted ${adaptedAgo} &nbsp;·&nbsp; TP <span style="color:#00e676;">▲${r.tp}%</span> &nbsp; SL <span style="color:#ff5252;">▼${r.sl}%</span></div>` : ''}
+                        ${isAdapted ? `<div style="font-size:0.65rem;color:#00d4ff;display:flex;align-items:center;gap:4px;margin-bottom:1px;"><span style="animation:pulse 2s infinite;">⚡</span> AI Adapted ${adaptedAgo}</div>` : ''}
                         <div style="display:flex;gap:6px;align-items:flex-end;">
                           <div style="display:flex;flex-direction:column;gap:2px;">
                             <span style="color:#555;font-size:0.65rem;">SYM</span>
