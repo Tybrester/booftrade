@@ -2442,16 +2442,19 @@ Deno.serve(async (req) => {
                 sigResult = { signal: boof80result.signal, price: boof80result.price, reason: boof80result.reason, trend: boof80result.trend, ema: boof80result.ema, adx: boof80result.adx };
                 // Write adaptive TP/SL back to symbol_rules so UI reflects live values (even if no signal)
                 if (boof80result.dynamicTP > 0) {
-                  const currentRules: Array<{symbol:string;tp:number;sl:number;dir?:string;adapted_at?:string}> = (bot.symbol_rules as any) || [];
+                  const currentRules: Array<{symbol:string;tp:number;sl:number;dir?:string;adapted_at?:string;base_tp?:number;base_sl?:number}> = (bot.symbol_rules as any) || [];
                   const ruleIdx = currentRules.findIndex((r: any) => r.symbol?.toUpperCase() === sym.toUpperCase());
                   // Hard SL floor by expiry — 0DTE can't go past -15%, 1DTE -20%, weekly+ -25%
                   const slFloor = settings.expiryType === '0dte' ? -15 : settings.expiryType === '1dte' ? -20 : -25;
                   const adaptedSL = Math.max(slFloor, boof80result.dynamicSL);
+                  const existingRule = ruleIdx >= 0 ? currentRules[ruleIdx] : null;
                   const adaptedRule = {
                     symbol:     sym,
                     tp:         Math.round(boof80result.dynamicTP * 10) / 10,
                     sl:         Math.round(adaptedSL * 10) / 10,
-                    dir:        ruleIdx >= 0 ? (currentRules[ruleIdx].dir || 'both') : 'both',
+                    dir:        existingRule?.dir || 'both',
+                    base_tp:    existingRule?.base_tp ?? existingRule?.tp ?? Math.round(boof80result.dynamicTP * 10) / 10,
+                    base_sl:    existingRule?.base_sl ?? existingRule?.sl ?? Math.round(adaptedSL * 10) / 10,
                     adapted_at: new Date().toISOString(),
                   };
                   const updatedRules = ruleIdx >= 0
