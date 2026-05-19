@@ -629,14 +629,36 @@
         const wins = trades.filter(t => (t.pnl || 0) > 0).length;
         const winRate = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : 0;
         
+        // Build daily P&L breakdown
+        const dailyMap = {};
+        trades.forEach(t => {
+          const day = (t.closed_at || t.created_at || '').slice(0,10);
+          if (!day) return;
+          if (!dailyMap[day]) dailyMap[day] = { pnl: 0, wins: 0, losses: 0 };
+          dailyMap[day].pnl += (t.pnl || 0);
+          if ((t.pnl || 0) > 0) dailyMap[day].wins++; else dailyMap[day].losses++;
+        });
+        const dailyRows = Object.entries(dailyMap).sort((a,b) => b[0].localeCompare(a[0])).map(([day, d]) => {
+          const dp = d.pnl;
+          const dLabel = new Date(day + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-bottom:1px solid #1a1a1a;font-size:0.8rem;">
+            <span style="color:#888;">${dLabel}</span>
+            <span style="color:#aaa;">${d.wins}W / ${d.losses}L</span>
+            <span style="font-weight:600;color:${dp>=0?'#00e676':'#ff5252'}">${formatMoney(dp)}</span>
+          </div>`;
+        }).join('');
+
         botStatsHtml += `
           <div class="bot-stat-card" style="background:linear-gradient(135deg,#1a1a1a 0%,#0d0d0d 100%);border:1px solid #222;border-radius:12px;padding:20px;margin-bottom:15px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;cursor:pointer;" onclick="toggleDailyPnl('daily-stock-${bot.id}')">
               <div style="display:flex;align-items:center;gap:10px;">
                 <span style="font-size:1.1rem;font-weight:600;color:#e0e0e0;">${bot.name}</span>
                 <span style="background:#00d4ff22;color:#00d4ff;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;">Stock</span>
               </div>
-              <span style="font-size:0.85rem;color:#888;">${bot.bot_interval || '1m'} · ${bot.bot_signal || 'Boof 1.0'}</span>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:0.85rem;color:#888;">${bot.bot_interval || '1m'} · ${bot.bot_signal || 'Boof 1.0'}</span>
+                <span style="color:#555;font-size:0.8rem;">Daily ▾</span>
+              </div>
             </div>
             <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
               <div class="stat-card" style="padding:15px;">
@@ -655,6 +677,10 @@
                 <div class="stat-label">Avg per Trade</div>
                 <div class="stat-value ${totalTrades > 0 && pnl/totalTrades >= 0 ? 'positive' : totalTrades > 0 ? 'negative' : 'neutral'}">${totalTrades > 0 ? formatMoney(pnl/totalTrades) : '$0.00'}</div>
               </div>
+            </div>
+            <div id="daily-stock-${bot.id}" style="display:none;margin-top:12px;border-top:1px solid #1a1a1a;padding-top:10px;">
+              <div style="font-size:0.72rem;font-weight:600;color:#555;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Daily P&L Breakdown</div>
+              ${dailyRows || '<div style="color:#444;font-size:0.8rem;padding:8px 0;">No trade history</div>'}
             </div>
           </div>
         `;
@@ -670,14 +696,36 @@
         const wins = trades.filter(t => (Number(t.pnl) || 0) > 0).length;
         const winRate = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : 0;
         
+        // Build daily P&L breakdown
+        const dailyMapO = {};
+        trades.forEach(t => {
+          const day = (t.closed_at || t.created_at || '').slice(0,10);
+          if (!day) return;
+          if (!dailyMapO[day]) dailyMapO[day] = { pnl: 0, wins: 0, losses: 0 };
+          dailyMapO[day].pnl += (Number(t.pnl) || 0);
+          if ((Number(t.pnl) || 0) > 0) dailyMapO[day].wins++; else dailyMapO[day].losses++;
+        });
+        const dailyRowsO = Object.entries(dailyMapO).sort((a,b) => b[0].localeCompare(a[0])).map(([day, d]) => {
+          const dp = d.pnl;
+          const dLabel = new Date(day + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-bottom:1px solid #1a1a1a;font-size:0.8rem;">
+            <span style="color:#888;">${dLabel}</span>
+            <span style="color:#aaa;">${d.wins}W / ${d.losses}L</span>
+            <span style="font-weight:600;color:${dp>=0?'#00e676':'#ff5252'}">${formatMoney(dp)}</span>
+          </div>`;
+        }).join('');
+
         botStatsHtml += `
           <div class="bot-stat-card" style="background:linear-gradient(135deg,#1a1a00 0%,#0d0d00 100%);border:1px solid #332200;border-radius:12px;padding:20px;margin-bottom:15px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;cursor:pointer;" onclick="toggleDailyPnl('daily-opt-${bot.id}')">
               <div style="display:flex;align-items:center;gap:10px;">
                 <span style="font-size:1.1rem;font-weight:600;color:#e0e0e0;">${bot.name}</span>
                 <span style="background:#ffd70022;color:#ffd700;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;">Options</span>
               </div>
-              <span style="font-size:0.85rem;color:#888;">${bot.bot_expiry_type || 'weekly'} · ${bot.bot_signal || 'supertrend'}${openCount > 0 ? ` · <span style="color:#00e676">${openCount} open</span>` : ''}</span>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:0.85rem;color:#888;">${bot.bot_expiry_type || 'weekly'} · ${bot.bot_signal || 'supertrend'}${openCount > 0 ? ` · <span style="color:#00e676">${openCount} open</span>` : ''}</span>
+                <span style="color:#555;font-size:0.8rem;">Daily ▾</span>
+              </div>
             </div>
             <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
               <div class="stat-card" style="padding:15px;">
@@ -697,11 +745,21 @@
                 <div class="stat-value ${totalTrades > 0 && pnl/totalTrades >= 0 ? 'positive' : totalTrades > 0 ? 'negative' : 'neutral'}">${totalTrades > 0 ? formatMoney(pnl/totalTrades) : '$0.00'}</div>
               </div>
             </div>
+            <div id="daily-opt-${bot.id}" style="display:none;margin-top:12px;border-top:1px solid #1a1a1a;padding-top:10px;">
+              <div style="font-size:0.72rem;font-weight:600;color:#555;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Daily P&L Breakdown</div>
+              ${dailyRowsO || '<div style="color:#444;font-size:0.8rem;padding:8px 0;">No trade history</div>'}
+            </div>
           </div>
         `;
       });
 
       container.innerHTML = botStatsHtml || '<div class="empty-state">No bots found</div>';
+    }
+
+    function toggleDailyPnl(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
     }
 
     function formatMoney(amount) {
