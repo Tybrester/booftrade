@@ -453,13 +453,13 @@
 
     .empty-positions { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 48px 24px; text-align: center; color: var(--muted); font-size: 0.9rem; }
 
-    .bot-overview-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; display:flex; flex-direction:column; gap:10px; text-decoration:none; color:inherit; transition: border-color 0.15s; cursor:pointer; }
+    .bot-overview-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; display:flex; flex-direction:column; gap:5px; text-decoration:none; color:inherit; transition: border-color 0.15s; cursor:pointer; }
     .bot-overview-card:hover { border-color: #333; }
     .bot-overview-card.running { border-color: rgba(0,230,118,0.3); }
     .bot-overview-card.stopped { border-color: var(--border); }
-    .bot-overview-bal { font-size: 1rem; font-weight: 900; letter-spacing: -0.03em; color: var(--accent); }
-    .bot-overview-pct { font-size: 0.82rem; font-weight: 700; margin-left: 8px; }
-    .bot-overview-row { display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted); }
+    .bot-overview-bal { font-size: 0.88rem; font-weight: 900; letter-spacing: -0.02em; color: var(--accent); }
+    .bot-overview-pct { font-size: 0.72rem; font-weight: 700; margin-left: 6px; }
+    .bot-overview-row { display:flex; justify-content:space-between; font-size:0.68rem; color:var(--muted); }
   </style>
 </head>
 <body>
@@ -581,7 +581,7 @@
       </div>
 
       <div class="section-title">Bots</div>
-      <div id="bots-overview" style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:32px;">
+      <div id="bots-overview" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:20px;">
         <div style="color:#444;font-size:0.85rem;">Loading bots...</div>
       </div>
 
@@ -912,13 +912,13 @@
           const brokerLabel = b.broker === 'tastytrade' ? 'Tastytrade' : b.broker === 'alpaca' ? 'Alpaca' : 'Paper';
           return `<a href="bots.html" class="bot-overview-card ${isRunning ? 'running' : 'stopped'}">
             <div style="display:flex;align-items:center;justify-content:space-between;">
-              <div style="font-size:0.9rem;font-weight:900;color:var(--text);">${b.name}</div>
+              <div style="font-size:0.78rem;font-weight:900;color:var(--text);">${b.name}</div>
               <span style="font-size:0.68rem;font-weight:700;padding:3px 8px;border-radius:20px;background:${isRunning ? 'rgba(0,230,118,0.12)' : 'rgba(255,255,255,0.05)'};color:${isRunning ? 'var(--accent)' : '#555'};">${isRunning ? '● Running' : '○ Stopped'}</span>
             </div>
-            <div style="margin-top:10px;">
+            <div style="margin-top:4px;">
               <span class="bot-overview-bal">$${balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
-            <div style="margin-top:6px;">
+            <div style="margin-top:3px;">
               <span style="background:rgba(255,255,255,0.04);padding:2px 7px;border-radius:4px;font-size:0.68rem;">${b.type} · ${brokerLabel}</span>
             </div>
           </a>`;
