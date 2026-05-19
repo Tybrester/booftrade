@@ -2812,8 +2812,9 @@ Deno.serve(async (req) => {
               // Hard minimum: $1.00/contract. Never buy cheap far-OTM garbage.
               const atmStrike = Math.round(spotPrice / strikeInterval) * strikeInterval;
               const MIN_PREMIUM = 1.00; // $100/contract minimum
-              const MAX_STRIKES_WALK = 10; // walk up to 10 strikes to find budget-fitting option
-              const MAX_STRIKE_PCT_FROM_SPOT = 0.10; // never buy more than 10% OTM
+              // High-priced stocks (TSLA, NVDA, etc) need more strikes to find budget-fitting option
+              const MAX_STRIKES_WALK = spotPrice > 300 ? 20 : spotPrice > 100 ? 15 : 10;
+              const MAX_STRIKE_PCT_FROM_SPOT = spotPrice > 300 ? 0.15 : 0.10; // wider range for expensive stocks
               // For 0DTE, start ITM (negative offset = ITM for calls, positive = ITM for puts)
               const startOffset = expiryType === '0dte' ? -2 : 0;
               const startStrike = optionType === 'call'
