@@ -1417,20 +1417,28 @@ function generateSignalBoof70(
     return noResult(`Boof 7.0: skipping — ${regime.noTradeReason}`, false, undefined);
   }
 
-  // ── 4. DYNAMIC TP/SL ─────────────────────────────────────────────────────
+  // ── 4. CHOPPINESS INDEX FILTER ────────────────────────────────────────────
+  // Skip trading in choppy markets (same logic as Boof 8.0)
+  const ci = calcChoppinessIndex(highs, lows, closes, 14);
+  if (ci > 55) {
+    return noResult(`Boof 7.0: skipping — too choppy (CI=${ci.toFixed(1)})`, false, undefined);
+  }
+
+  // ── 5. DYNAMIC TP/SL ─────────────────────────────────────────────────────
   const { tpPct, slPct } = calcDynamicTPSL(regime, curPrice);
 
-  // ── 5. POSITION SIZING ────────────────────────────────────────────────────
+  // ── 6. POSITION SIZING ────────────────────────────────────────────────────
   const positionSizePct = calcPositionSize70(regime, recentWinRate, consecutiveLosses);
 
-  // ── 6. REGIME-BASED STRATEGY ─────────────────────────────────────────────
+  // ── 7. REGIME-BASED STRATEGY ─────────────────────────────────────────────
   const { signal, reason } = runRegimeStrategy(regime, candles, tradeDirection);
 
-  // ── 7. EMA for display ────────────────────────────────────────────────────
+  // ── 8. EMA for display ────────────────────────────────────────────────────
   const ema21 = calcEMA(closes, 21);
   const ema21Val = ema21[ema21.length-1] ?? curPrice;
 
-  const fullReason = `${reason} | regime=${regime.type} adx=${regime.adx.toFixed(1)} atr=${regime.atrPercent.toFixed(2)}% tp=+${tpPct.toFixed(1)}% sl=${slPct.toFixed(1)}% size=${(positionSizePct*100).toFixed(0)}%`;
+  const marketState = ci > 62 ? 'CHOPPY' : ci < 38 ? 'TRENDING' : 'MIXED';
+  const fullReason = `${reason} | CI=${ci.toFixed(1)}[${marketState}] regime=${regime.type} adx=${regime.adx.toFixed(1)} atr=${regime.atrPercent.toFixed(2)}% tp=+${tpPct.toFixed(1)}% sl=${slPct.toFixed(1)}% size=${(positionSizePct*100).toFixed(0)}%`;
 
   return {
     signal,
