@@ -981,11 +981,19 @@ function generateSignalBoof60(candles: any[], candles1h: any[], candles15m: any[
   }
   if (trendBias === 'flat') return { signal: 'none', price: curClose, trend: 0, ema: 0, adx: 0, reason: 'Boof 6.0: 1h trend flat' };
 
-  // ADX filter
+  // ADX filter - check if rising too
   const { adx: adxArr } = calcDMI(highs, lows, closes, 14);
   const adxVal = adxArr[adxArr.length-1] ?? 0;
+  const adxPrev = adxArr[adxArr.length-2] ?? 0;
+  const adxRising = adxVal > adxPrev;
   const adxMin = is1m ? 14 : 18;
   if (adxVal < adxMin) return { signal: 'none', price: curClose, trend: 0, ema: 0, adx: adxVal, reason: `Boof 6.0: ADX=${adxVal.toFixed(1)} too low` };
+  // NEW: ADX must be rising or very strong (>25)
+  if (!adxRising && adxVal < 25) return { signal: 'none', price: curClose, trend: 0, ema: 0, adx: adxVal, reason: `Boof 6.0: ADX=${adxVal.toFixed(1)} falling, trend exhausting` };
+
+  // NEW: Choppiness Index filter - skip choppy markets (same as 7.0/8.0)
+  const ci = calcChoppinessIndex(highs, lows, closes, 14);
+  if (ci > 55) return { signal: 'none', price: curClose, trend: 0, ema: 0, adx: adxVal, reason: `Boof 6.0: too choppy (CI=${ci.toFixed(1)})` };
 
   // EMA side
   let ema15Val = 0;
@@ -1038,11 +1046,35 @@ function generateSignalBoof60(candles: any[], candles1h: any[], candles15m: any[
   const avgVol = volumes.slice(-20).reduce((a: number, b: number) => a + b, 0) / 20;
   if (avgVol > 0 && volumes[n-1] < avgVol * 0.8) return { signal: 'none', price: curClose, trend: 0, ema: ema15Val, adx: adxVal, reason: 'Boof 6.0: volume too low' };
 
+  // NEW: Pullback filter - wait for small pullback before entering (prevents V-bottom/top entries)
+  // For SELL (puts): need 0.3% bounce from recent low
+  // For BUY (calls): need 0.3% pullback from recent high
+  const recentHigh = Math.max(...highs.slice(Math.max(0, n-6), n));
+  const recentLow  = Math.min(...lows.slice(Math.max(0, n-6), n));
+  const atrVals: number[] = [];
+  for (let j = 1; j < n; j++) atrVals.push(Math.max(highs[j]-lows[j], Math.abs(highs[j]-closes[j-1]), Math.abs(lows[j]-closes[j-1])));
+  const atrNow = b50Mean(atrVals.slice(-14));
+  const rangeSize = recentHigh - recentLow;
+  
+  if (trendBias === 'down') {
+    // For puts: wait for bounce from low (0.3% or within 3x ATR range)
+    const bounceNeeded = recentLow * 1.003;
+    if (curClose < bounceNeeded && rangeSize > atrNow * 3) {
+      return { signal: 'none', price: curClose, trend: 0, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: waiting for bounce from low (CI=${ci.toFixed(1)})` };
+    }
+  } else if (trendBias === 'up') {
+    // For calls: wait for pullback from high (0.3% or within 3x ATR range)
+    const pullbackNeeded = recentHigh * 0.997;
+    if (curClose > pullbackNeeded && rangeSize > atrNow * 3) {
+      return { signal: 'none', price: curClose, trend: 0, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: waiting for pullback from high (CI=${ci.toFixed(1)})` };
+    }
+  }
+
   let signal: 'buy' | 'sell' | 'none' = trendBias === 'up' ? 'buy' : 'sell';
   if (tradeDirection === 'long'  && signal === 'sell') signal = 'none';
   if (tradeDirection === 'short' && signal === 'buy')  signal = 'none';
 
-  const reason = `Boof 6.0 [${trendBias.toUpperCase()}${is1m?'/1m':'/5m+'}] adx=${adxVal.toFixed(1)} macd=${histLast.toFixed(4)} vwap=$${vwapVal.toFixed(2)}`;
+  const reason = `Boof 6.0 [${trendBias.toUpperCase()}${is1m?'/1m':'/5m+'}] adx=${adxVal.toFixed(1)}${adxRising?'↑':'↓'} ci=${ci.toFixed(1)} macd=${histLast.toFixed(4)} vwap=$${vwapVal.toFixed(2)} pullback=ok`;
   return { signal, price: curClose, trend: trendBias === 'up' ? 1 : -1, ema: ema15Val, adx: adxVal, reason };
 }
 
