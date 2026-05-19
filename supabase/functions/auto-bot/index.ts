@@ -2885,6 +2885,12 @@ Deno.serve(async (req) => {
       try {
         if (isSingleMode) {
           for (const sym of singleSymbols) {
+            const isCryptoOrFutures = sym.includes('-USD') || sym.includes('/USD') || sym.includes('=F');
+            if (!isCryptoOrFutures && !isStockMarketHours) {
+              console.log(`[AutoBot] Skipping ${sym} for "${bot.name}" - pre/post market (${etNow.toLocaleTimeString('en-US', {timeZone: 'America/New_York'})} ET)`);
+              results.push({ bot_id: bot.id, symbol: sym, status: 'skipped', reason: `Pre/post market hours (${etNow.toLocaleTimeString('en-US', {timeZone: 'America/New_York'})} ET) — stocks only trade 9:30 AM - 4:00 PM ET` });
+              continue;
+            }
             const result = await processSymbol(bot, sym, settings);
             results.push(result);
           }
