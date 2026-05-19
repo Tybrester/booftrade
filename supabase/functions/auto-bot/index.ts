@@ -1269,13 +1269,22 @@ function runRegimeStrategy(
   const n = closes.length;
   const i = n - 2;
 
-  // ── SHARED: RSI + ATR for all strategies ──
+  // ── SHARED: RSI + ATR + ADX for all strategies ──
   const rsi    = calcRSI(closes, 14);
   const curRSI = rsi[rsi.length-2] ?? 50;
   const atrVals: number[] = [];
   for (let j = 1; j < n; j++) atrVals.push(Math.max(highs[j]-lows[j], Math.abs(highs[j]-closes[j-1]), Math.abs(lows[j]-closes[j-1])));
   const atrNow = b50Mean(atrVals.slice(-14));
   const atrAvg = b50Mean(atrVals.slice(-34, -14));
+
+  // Calculate ADX for trend strength confirmation (use b50ADX which exists)
+  const curADX = b50ADX(highs, lows, closes, 14);
+  // Previous bar ADX for rising check
+  const prevHighs = highs.slice(0, -1);
+  const prevLows = lows.slice(0, -1);
+  const prevCloses = closes.slice(0, -1);
+  const prevADX = b50ADX(prevHighs, prevLows, prevCloses, 14);
+  const adxRising = curADX > prevADX;
 
   // ── FLUSH DETECTOR: big body + ATR spike + volume surge ──
   const candleBody    = Math.abs(closes[i] - candles[i].open);
@@ -1324,6 +1333,21 @@ function runRegimeStrategy(
     const rsiBuyOk  = curRSI > 40 && curRSI < 75;
     const rsiSellOk = curRSI < 60 && curRSI > 25;
 
+    // ── NEW: ADX Rising Confirmation ──
+    // Only enter when trend is building (ADX rising), not exhausting
+    const adxRisingOk = adxRising || curADX > 30; // Either rising OR very strong trend
+
+    // ── NEW: Pullback Filter ──
+    // Wait for small pullback after big move (prevents V-bottom entries)
+    // For SELL (puts): wait for 0.3% bounce from recent low before entering
+    // For BUY (calls): wait for 0.3% pullback from recent high before entering
+    const recentHigh = Math.max(...highs.slice(Math.max(0, i-5), i+1));
+    const recentLow  = Math.min(...lows.slice(Math.max(0, i-5), i+1));
+    const pullbackToEnterSell = recentLow * 1.003; // Need 0.3% bounce from low
+    const pullbackToEnterBuy  = recentHigh * 0.997; // Need 0.3% pullback from high
+    const sellPullbackOk = closes[i] > pullbackToEnterSell || (recentHigh - recentLow) < atrNow * 3;
+    const buyPullbackOk  = closes[i] < pullbackToEnterBuy || (recentHigh - recentLow) < atrNow * 3;
+
     let signal: 'buy' | 'sell' | 'none' = 'none';
     let reason = '';
 
@@ -1342,12 +1366,12 @@ function runRegimeStrategy(
     } else if (bullFlush && regime.type !== 'TREND_DOWN') {
       signal = 'buy';
       reason = `Boof7.0 FLUSH_BULL [${regime.type}] body=${candleBodyPct.toFixed(2)}% atr=${atrNow.toFixed(3)} vol=${(volumes[i]/volAvg).toFixed(1)}x`;
-    } else if ((emaCrossedUp || contBull) && regime.type !== 'TREND_DOWN' && rsiBuyOk) {
+    } else if ((emaCrossedUp || contBull) && regime.type !== 'TREND_DOWN' && rsiBuyOk && adxRisingOk && buyPullbackOk) {
       signal = 'buy';
-      reason = `Boof7.0 BREAKOUT [${regime.type}] ema9=${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)} rsi=${curRSI.toFixed(1)}`;
-    } else if ((emaCrossedDown || contBear) && regime.type !== 'TREND_UP' && rsiSellOk && sellSlopeOk) {
+      reason = `Boof7.0 BREAKOUT [${regime.type}] ema9=${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)} rsi=${curRSI.toFixed(1)} adx=${curADX.toFixed(1)}${adxRising ? '↑' : '↓'} pullback=ok`;
+    } else if ((emaCrossedDown || contBear) && regime.type !== 'TREND_UP' && rsiSellOk && sellSlopeOk && adxRisingOk && sellPullbackOk) {
       signal = 'sell';
-      reason = `Boof7.0 BREAKOUT [${regime.type}] ema9=${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)} rsi=${curRSI.toFixed(1)}`;
+      reason = `Boof7.0 BREAKOUT [${regime.type}] ema9=${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)} rsi=${curRSI.toFixed(1)} adx=${curADX.toFixed(1)}${adxRising ? '↑' : '↓'} pullback=ok`;
     } else {
       reason = `Boof7.0 NO_ENTRY [${regime.type}] ema9=${ema9[ema9.length-1].toFixed(2)} macd=${histLast.toFixed(4)} rsi=${curRSI.toFixed(1)}`;
     }
