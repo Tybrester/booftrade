@@ -1310,11 +1310,11 @@
                             <input class="auto-input" value="${r.symbol}" placeholder="SPY" style="width:52px;font-size:0.75rem;text-transform:uppercase;padding:4px 6px;" oninput="this.value=this.value.toUpperCase()" data-rule-sym/>
                           </div>
                           <div style="display:flex;flex-direction:column;gap:2px;">
-                            <span style="${isAdapted?'color:#00e676;font-weight:700;':'color:#555;'}font-size:0.65rem;">${isAdapted?'▲':'—'} TP %</span>
+                            <span style="${isAdapted?'color:#00e676;font-weight:700;':'color:#555;'}font-size:0.65rem;">${isAdapted?'▲'+r.tp+'%':'—'} TP</span>
                             <input class="auto-input" type="number" value="${r.tp}" min="1" max="500" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;${isAdapted?'border-color:rgba(0,230,118,0.35);color:#00e676;font-weight:600;':''}" data-rule-tp/>
                           </div>
                           <div style="display:flex;flex-direction:column;gap:2px;">
-                            <span style="${isAdapted?'color:#ff5252;font-weight:700;':'color:#555;'}font-size:0.65rem;">${isAdapted?'▼':'—'} SL %</span>
+                            <span style="${isAdapted?'color:#ff5252;font-weight:700;':'color:#555;'}font-size:0.65rem;">${isAdapted?'▼'+r.sl+'%':'—'} SL</span>
                             <input class="auto-input" type="number" value="${r.sl}" min="-100" max="0" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;${isAdapted?'border-color:rgba(255,82,82,0.35);color:#ff5252;font-weight:600;':''}" data-rule-sl/>
                           </div>
                           <div style="display:flex;flex-direction:column;gap:2px;">
@@ -3062,11 +3062,10 @@
                     return rules.map((r,i) => `
                       <div id="symbol-rule-row-${s.id}-${i}" style="display:flex;gap:6px;align-items:center;background:#0d0d0d;border:1px solid #1e1e1e;border-radius:5px;padding:5px 8px;">
                         <input class="auto-input" value="${r.symbol}" placeholder="SPY" style="width:58px;font-size:0.75rem;text-transform:uppercase;padding:4px 6px;" oninput="this.value=this.value.toUpperCase()" data-rule-sym/>
-                        <span style="color:#555;font-size:0.7rem;">TP</span>
+                        <span style="color:#00e676;font-size:0.7rem;font-weight:700;">▲${r.tp}% TP</span>
                         <input class="auto-input" type="number" value="${r.tp}" min="1" max="500" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;" data-rule-tp/>
-                        <span style="color:#555;font-size:0.7rem;">% SL</span>
+                        <span style="color:#ff5252;font-size:0.7rem;font-weight:700;">▼${r.sl}% SL</span>
                         <input class="auto-input" type="number" value="${r.sl}" min="-100" max="0" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;" data-rule-sl/>
-                        <span style="color:#555;font-size:0.7rem;">%</span>
                         <select class="auto-input" style="width:60px;font-size:0.7rem;padding:4px 4px;" data-rule-dir>
                           <option value="both" ${r.dir==='both'?'selected':''}>Both</option>
                           <option value="long" ${r.dir==='long'?'selected':''}>Long</option>
