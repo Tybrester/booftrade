@@ -1287,7 +1287,10 @@
               <div id="oper-sym-section-${b.id}" style="margin-top:10px;border-top:1px solid #1a1a1a;padding-top:10px;">
                 <div style="font-size:0.75rem;font-weight:600;color:#888;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
                   <span>TP/SL Rules</span>
-                  <button onclick="addSymbolRule('opt-${b.id}')" style="padding:2px 8px;background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.2);color:#00e676;border-radius:4px;cursor:pointer;font-size:0.72rem;font-family:inherit;">+ Add Symbol</button>
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    ${(()=>{ const ci = b.last_ci; if (!ci && ci !== 0) return ''; const color = ci < 38 ? '#00e676' : ci > 62 ? '#ff5252' : '#ffab40'; const label = ci < 38 ? 'TRENDING' : ci > 62 ? 'CHOPPY' : 'MIXED'; return `<span title="Choppiness Index — ${label}" style="font-size:0.68rem;font-weight:700;color:${color};background:rgba(0,0,0,0.3);border:1px solid ${color}33;border-radius:4px;padding:1px 6px;">CI ${ci} <span style="opacity:0.7;font-weight:400">${label}</span></span>`; })()}
+                    <button onclick="addSymbolRule('opt-${b.id}')" style="padding:2px 8px;background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.2);color:#00e676;border-radius:4px;cursor:pointer;font-size:0.72rem;font-family:inherit;">+ Add Symbol</button>
+                  </div>
                 </div>
                 <div id="symbol-rules-opt-${b.id}" style="display:flex;flex-direction:column;gap:5px;">
                   ${(()=>{
@@ -3043,8 +3046,9 @@
               <!-- Per-Symbol Rules — visible when multi-symbol or rules exist -->
               <div id="per-sym-section-${s.id}" style="margin-top:10px;border-top:1px solid #1a1a1a;padding-top:10px;display:${((s.symbol_rules&&s.symbol_rules.length)||(s.bot_symbol&&s.bot_symbol.includes(',')))?'block':'none'}">
                 <div style="font-size:0.75rem;font-weight:600;color:#888;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
-                  <span>Per-Symbol TP/SL Overrides</span>
+                  <span>TP/SL Rules</span>
                   <div style="display:flex;gap:6px;align-items:center;">
+                    ${(()=>{ const ci = s.last_ci; if (!ci && ci !== 0) return ''; const color = ci < 38 ? '#00e676' : ci > 62 ? '#ff5252' : '#ffab40'; const label = ci < 38 ? 'TRENDING' : ci > 62 ? 'CHOPPY' : 'MIXED'; return `<span title="Choppiness Index — ${label}" style="font-size:0.68rem;font-weight:700;color:${color};background:rgba(0,0,0,0.3);border:1px solid ${color}33;border-radius:4px;padding:1px 6px;">CI ${ci} <span style="opacity:0.7;font-weight:400">${label}</span></span>`; })()}
                     <button onclick="toggleDefaultTpsl('${s.id}')" id="default-tpsl-toggle-${s.id}" style="padding:2px 8px;background:transparent;border:1px solid #2a2a2a;color:#555;border-radius:4px;cursor:pointer;font-size:0.68rem;font-family:inherit;">${(s.symbol_rules&&s.symbol_rules.length)?'Default TP/SL':'Hide'}</button>
                     <button onclick="addSymbolRule('${s.id}')" style="padding:2px 8px;background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.2);color:#00e676;border-radius:4px;cursor:pointer;font-size:0.72rem;font-family:inherit;">+ Add Symbol</button>
                   </div>

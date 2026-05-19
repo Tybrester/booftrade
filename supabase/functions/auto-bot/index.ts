@@ -1111,6 +1111,7 @@ interface Boof70Result extends SignalResult {
   killSwitch: boolean;
   killReason?: string;
   regimeDetails: Boof70Regime;
+  ci?: number;
 }
 
 // ── Regime Detector ──────────────────────────────────────────────────────────
@@ -1509,6 +1510,7 @@ function generateSignalBoof70(
     positionSizePct,
     killSwitch: false,
     regimeDetails: regime,
+    ci,
   };
 }
 
@@ -2384,6 +2386,9 @@ Deno.serve(async (req) => {
             console.log(`[Boof7.0] Position size: ${(boof7Result.positionSizePct*100).toFixed(0)}% → $${originalAmount} → $${settings.dollarAmount}`);
             await supabase.from('stock_bots').update({ last_position_size_pct: boof7Result.positionSizePct }).eq('id', bot.id as string);
           }
+          if (boof7Result.ci !== undefined) {
+            await supabase.from('stock_bots').update({ last_ci: Math.round(boof7Result.ci) }).eq('id', bot.id as string);
+          }
         } else if (botSignal === 'boof80') {
           // BOOF 8.0 - Adaptive AI Scalper with 0DTE aggressive mode support
           // Fetch last 20 closed trades with regime info for pattern learning
@@ -2430,6 +2435,9 @@ Deno.serve(async (req) => {
             settings.dollarAmount = Math.round(settings.dollarAmount * boof8Result.positionSizePct);
             console.log(`[Boof8.0] Position size: ${(boof8Result.positionSizePct*100).toFixed(0)}% → $${originalAmount} → $${settings.dollarAmount}`);
             await supabase.from('stock_bots').update({ last_position_size_pct: boof8Result.positionSizePct }).eq('id', bot.id as string);
+          }
+          if (boof8Result.choppiness !== undefined) {
+            await supabase.from('stock_bots').update({ last_ci: Math.round(boof8Result.choppiness) }).eq('id', bot.id as string);
           }
         } else {
           signalResult = generateSignal(candles, overrideSettings);
