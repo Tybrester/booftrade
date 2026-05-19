@@ -2870,11 +2870,11 @@ Deno.serve(async (req) => {
                 console.log(`[OptionsBot] $${candidateStrike} @ $${candidatePremium.toFixed(2)}/contract ($${(candidatePremium*100).toFixed(0)}) exceeds budget $${dollarAmount} — trying next strike`);
               }
 
-              // If nothing fit budget, buy 1 contract of the cheapest valid strike found
+              // If nothing fit budget, skip trade — don't buy over-budget
               if ((!premium || premium < MIN_PREMIUM) && cheapestPremium >= MIN_PREMIUM) {
-                strike = cheapestStrike;
-                premium = cheapestPremium;
-                console.log(`[OptionsBot] ${sym} no strike fit budget — buying 1 contract of cheapest: $${strike} @ $${premium.toFixed(2)}`);
+                console.log(`[OptionsBot] ${sym} BLOCKED: cheapest option $${cheapestStrike} @ $${cheapestPremium.toFixed(2)}/contract ($${(cheapestPremium*100).toFixed(0)}) exceeds budget $${dollarAmount} — skipping trade. Increase budget or trade cheaper symbols.`);
+                results.push({ bot_id: bot.id, symbol: sym, status: 'skipped', reason: `${sym} cheapest option $${(cheapestPremium*100).toFixed(0)} exceeds budget $${dollarAmount} — increase bot dollar amount` });
+                continue;
               }
 
               // HARD STOP — never trade below $1.00 premium under any circumstance
