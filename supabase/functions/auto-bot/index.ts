@@ -1594,9 +1594,14 @@ function scorePatternWeight(
 
   // Match trades that fired with this pattern (fuzzy match on reason string)
   const [regime, pattern] = patternKey.split(':');
-  const matched = recentTrades.filter(t =>
+  const patternMatched = recentTrades.filter(t =>
     t.reason?.includes(pattern) && t.regime === regime
   );
+  // Fall back to all trades for this regime if not enough pattern-specific data
+  const regimeMatched = recentTrades.filter(t => t.regime === regime);
+  const matched = patternMatched.length >= 2 ? patternMatched
+    : regimeMatched.length >= 2 ? regimeMatched
+    : recentTrades;
 
   if (matched.length < 2) return { weight: 1.0, wins: 0, losses: 0, avgWin: 0, avgLoss: 0 };
 
@@ -2391,8 +2396,9 @@ Deno.serve(async (req) => {
             .order('closed_at', { ascending: false })
             .limit(20);
           const recentTrades = (recentTradesData || []).map((t: any) => {
-            const reasonMatch = t.reason?.match(/\[([^\]]+)\]/);
-            const regime = reasonMatch ? reasonMatch[1] : 'UNKNOWN';
+            // Match known regime types specifically: TREND_UP, TREND_DOWN, RANGE, EXPLOSIVE, HIGH_VOL, LOW_VOL
+            const regimeMatch = t.reason?.match(/\[(TREND_UP|TREND_DOWN|RANGE|EXPLOSIVE|HIGH_VOL|LOW_VOL)[^\]]*\]/);
+            const regime = regimeMatch ? regimeMatch[1] : 'UNKNOWN';
             return { reason: t.reason || '', pnlPct: Number(t.pnl) || 0, regime };
           });
           const pnls = recentTrades.map((t: any) => t.pnlPct);
