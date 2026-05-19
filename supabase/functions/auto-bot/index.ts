@@ -1532,6 +1532,7 @@ interface Boof80Context {
   recentWinRate: number;
   expiryType?: string;  // '0dte', 'weekly', 'monthly' - for adaptive TP/SL
   isCrypto: boolean;
+  interval?: string;  // '1m', '5m', '15m', etc - for CI threshold adjustment
 }
 
 interface Boof80Result {
@@ -1622,14 +1623,16 @@ function calcAdaptiveTPSL(
   ci: number,                 // Choppiness Index 0-100
   patternWeight: number,      // 0.5-1.5 from pattern scorer
   recentWinRate: number,      // 0-1
-  expiryType: string = 'weekly'  // '0dte', 'weekly', 'monthly'
+  expiryType: string = 'weekly',  // '0dte', 'weekly', 'monthly'
+  interval: string = '5m'      // '1m', '5m', '15m', etc - for CI threshold
 ): { tpPct: number; slPct: number; trailingSlPct: number; shouldTrade: boolean; reason?: string } {
   const is0DTE = expiryType === '0dte';
 
   // ── 0DTE AGGRESSIVE: Skip entirely if choppy ──
-  // 0DTE theta burn is brutal - only trade clean trends
-  if (is0DTE && ci > 55) {
-    return { tpPct: 0, slPct: 0, trailingSlPct: 0, shouldTrade: false, reason: `0DTE skip: too choppy (CI=${ci.toFixed(1)})` };
+  // Timeframe-aware: 1m is stricter (55), 5m+ is looser (62) for learning
+  const ciSkipThreshold = interval === '1m' ? 55 : 62;
+  if (is0DTE && ci > ciSkipThreshold) {
+    return { tpPct: 0, slPct: 0, trailingSlPct: 0, shouldTrade: false, reason: `0DTE skip: too choppy (CI=${ci.toFixed(1)}, ${interval})` };
   }
 
   // Base ATR multipliers per regime
@@ -1785,13 +1788,16 @@ function generateSignalBoof80(
   const { weight: patternWeight, wins: pWins, losses: pLosses } = scorePatternWeight(patternKey, recentTrades);
   const adaptedFromHistory = recentTrades.length >= 2;
 
-  // Block signal if pattern has been consistently losing (weight < 0.65)
-  if (patternWeight < 0.65 && recentTrades.length >= 5) {
-    return noResult(`Boof 8.0: pattern ${patternKey} underperforming (weight=${patternWeight.toFixed(2)}, ${pWins}W/${pLosses}L) — skipping`);
+  // Block signal if pattern has been consistently losing
+  // Learning phase: lower threshold (0.55) until 10+ trades, then tighten (0.65)
+  const weightThreshold = recentTrades.length >= 10 ? 0.65 : 0.55;
+  if (patternWeight < weightThreshold && recentTrades.length >= 5) {
+    return noResult(`Boof 8.0: pattern ${patternKey} underperforming (weight=${patternWeight.toFixed(2)}, ${pWins}W/${pLosses}L, thresh=${weightThreshold}) — skipping`);
   }
 
   // ── 5. ADAPTIVE TP/SL ─────────────────────────────────────────────────────
-  const { tpPct, slPct, trailingSlPct, shouldTrade: tpSlOk, reason: tpSlReason } = calcAdaptiveTPSL(regime, curPrice, ci, patternWeight, recentWinRate, context.expiryType || 'weekly');
+  const interval = context.interval || '5m';
+  const { tpPct, slPct, trailingSlPct, shouldTrade: tpSlOk, reason: tpSlReason } = calcAdaptiveTPSL(regime, curPrice, ci, patternWeight, recentWinRate, context.expiryType || 'weekly', interval);
 
   // 0DTE: Skip if adaptive TP/SL says conditions aren't right
   if (!tpSlOk) {
@@ -2399,12 +2405,14 @@ Deno.serve(async (req) => {
           }
           const isCryptoSym = sym.includes('-USD') || sym.includes('/USD');
           const expiryType: string = (bot.bot_expiry_type as string) || 'weekly';
+          const interval = settings.interval || '5m';
           const boof8Result = generateSignalBoof80(candles, tradeDirection, {
             recentTrades,
             consecutiveLosses,
             recentWinRate,
             expiryType,
-            isCrypto: isCryptoSym
+            isCrypto: isCryptoSym,
+            interval
           });
           signalResult = boof8Result;
           if (boof8Result.killSwitch) {
