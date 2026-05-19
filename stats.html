@@ -12,6 +12,8 @@
       color: #e0e0e0;
       font-family: 'Segoe UI', system-ui, sans-serif;
       min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
     .header {
       background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
@@ -36,11 +38,20 @@
       transition: color 0.2s;
     }
     .nav-links a:hover { color: #fff; }
+    :root { --surface:#111; --border:#1e1e1e; --accent:#00e676; --muted:#666; --text:#e0e0e0; --card-bg:#111; }
+    .layout { display: flex; flex: 1; overflow: hidden; }
+    .sidebar { width: 230px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 16px 0; height: calc(100vh - 64px); position: sticky; top: 0; overflow-y: auto; }
+    .sidebar-section { padding: 6px 12px; font-size: 0.7rem; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 12px; }
+    .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-left: 3px solid transparent; font-size: 0.9rem; font-weight: 500; color: var(--muted); text-decoration: none; transition: background 0.15s, color 0.15s; }
+    .sidebar-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+    .sidebar-item.active { background: rgba(0,230,118,0.08); color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+    main { flex: 1; overflow-y: auto; }
     .container {
-      max-width: 1400px;
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 30px;
+      padding: 24px;
     }
+    @media (max-width: 900px) { .sidebar { display: none; } }
     .section-title {
       font-size: 1.3rem;
       margin: 30px 0 20px;
@@ -332,22 +343,37 @@
       <button class="refresh-btn" onclick="loadStats()">Refresh</button>
       <button class="clear-btn" onclick="recalculateAllPnl()" style="background:#441111;color:#ff6b6b;border:1px solid #ff6b6b;">Recalculate P&L</button>
       <button class="clear-btn" onclick="clearAllData()">Clear All Data</button>
-      <div class="nav-links">
-        <a href="backtest.html">Backtest</a>
-        <a href="bots.html">Back to Bots</a>
-        <a href="index.html">Dashboard</a>
-      </div>
     </div>
   </div>
 
-  <div class="container">
-    <!-- Main Content: Per-Bot Statistics -->
-    <div id="main-content">
-      <h2 class="section-title">Statistics by Bot</h2>
-      <div id="per-bot-stats-container">
-        <div class="empty-state">Loading bot statistics...</div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-section">Menu</div>
+      <a href="dashboard.html" class="sidebar-item">Dashboard</a>
+      <a href="trades.html" class="sidebar-item">Trades</a>
+      <a href="paper-market.html" class="sidebar-item">Paper Market</a>
+      <a href="alerts.html" class="sidebar-item">Systems</a>
+      <a href="accounts.html" class="sidebar-item">Accounts</a>
+      <a href="brokers.html" class="sidebar-item">Brokers</a>
+      <div class="sidebar-section" style="margin-top:24px;">Bots</div>
+      <a href="bots.html" class="sidebar-item">Bots</a>
+      <a href="stats.html" class="sidebar-item active">Statistics</a>
+      <a href="backtest.html" class="sidebar-item">Backtest</a>
+      <div class="sidebar-section" style="margin-top:24px;">Help</div>
+      <a href="how-it-works.html" class="sidebar-item">How it Works</a>
+    </aside>
+
+    <main>
+      <div class="container">
+        <!-- Main Content: Per-Bot Statistics -->
+        <div id="main-content">
+          <h2 class="section-title">Statistics by Bot</h2>
+          <div id="per-bot-stats-container">
+            <div class="empty-state">Loading bot statistics...</div>
+          </div>
+        </div>
       </div>
-    </div>
+    </main>
   </div>
 
   <script>
