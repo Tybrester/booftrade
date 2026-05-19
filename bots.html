@@ -1310,11 +1310,11 @@
                             <input class="auto-input" value="${r.symbol}" placeholder="SPY" style="width:52px;font-size:0.75rem;text-transform:uppercase;padding:4px 6px;" oninput="this.value=this.value.toUpperCase()" data-rule-sym/>
                           </div>
                           <div style="display:flex;flex-direction:column;gap:2px;">
-                            <span style="${isAdapted?'color:#00e676;font-weight:700;':'color:#555;'}font-size:0.65rem;">${isAdapted?(()=>{const base=r.base_tp??r.tp;const delta=Math.round((r.tp-base)*10)/10;const arrow=delta>0?'▲':delta<0?'▼':'';const color=delta>0?'#00e676':delta<0?'#ff5252':'#aaa';return `<span style="color:${color}">${arrow}${r.tp}%${delta!==0?` (${delta>0?'+':''}${delta}%)`:''}`;})()+'</span>':'—'} TP</span>
+                            <span style="${isAdapted?'font-weight:700;':'color:#555;'}font-size:0.65rem;">${isAdapted?(()=>{const base=r.base_tp??r.tp;const delta=Math.round((r.tp-base)*10)/10;const arrow=delta>0?'▲':delta<0?'▼':'';const color=delta>0?'#00e676':delta<0?'#ff5252':'#aaa';return `<span style="color:${color}">${arrow}</span>`;})():''} TP</span>
                             <input class="auto-input" type="number" value="${r.tp}" min="1" max="500" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;${isAdapted?'border-color:rgba(0,230,118,0.35);color:#00e676;font-weight:600;':''}" data-rule-tp/>
                           </div>
                           <div style="display:flex;flex-direction:column;gap:2px;">
-                            <span style="${isAdapted?'color:#ff5252;font-weight:700;':'color:#555;'}font-size:0.65rem;">${isAdapted?(()=>{const base=r.base_sl??r.sl;const delta=Math.round((r.sl-base)*10)/10;const arrow=delta<0?'▼':delta>0?'▲':'';const color=delta<0?'#ff5252':delta>0?'#00e676':'#aaa';return `<span style="color:${color}">${arrow}${r.sl}%${delta!==0?` (${delta>0?'+':''}${delta}%)`:''}`;})()+'</span>':'—'} SL</span>
+                            <span style="${isAdapted?'font-weight:700;':'color:#555;'}font-size:0.65rem;">${isAdapted?(()=>{const base=r.base_sl??r.sl;const delta=Math.round((r.sl-base)*10)/10;const arrow=delta<0?'▼':delta>0?'▲':'';const color=delta<0?'#ff5252':delta>0?'#00e676':'#aaa';return `<span style="color:${color}">${arrow}</span>`;})():''} SL</span>
                             <input class="auto-input" type="number" value="${r.sl}" min="-100" max="0" step="1" style="width:46px;font-size:0.75rem;padding:4px 5px;${isAdapted?'border-color:rgba(255,82,82,0.35);color:#ff5252;font-weight:600;':''}" data-rule-sl/>
                           </div>
                           <div style="display:flex;flex-direction:column;gap:2px;">
