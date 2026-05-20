@@ -459,8 +459,8 @@ function computeBoof30Signals(candles) {
     const recentLows = lows.slice(ci-5, ci+1);
     const maxRecentHigh = Math.max(...recentHighs);
     const minRecentLow = Math.min(...recentLows);
-    const nearHigh = (maxRecentHigh - curPrice) / maxRecentHigh * 100 < 0.3;
-    const nearLow = (curPrice - minRecentLow) / minRecentLow * 100 < 0.3;
+    const nearHigh = (maxRecentHigh - curPrice) / maxRecentHigh * 100 < 0.5;
+    const nearLow = (curPrice - minRecentLow) / minRecentLow * 100 < 0.5;
 
     // Pullback requirement: wait for 1 candle of retracement
     const prevPrice = closes[ci-1];
@@ -731,8 +731,8 @@ function computeBoof60Signals(candles) {
     const recentLows = lows.slice(i-5, i+1);
     const maxRecentHigh = Math.max(...recentHighs);
     const minRecentLow = Math.min(...recentLows);
-    const nearHigh = (maxRecentHigh - curPrice) / maxRecentHigh * 100 < 0.3;
-    const nearLow = (curPrice - minRecentLow) / minRecentLow * 100 < 0.3;
+    const nearHigh = (maxRecentHigh - curPrice) / maxRecentHigh * 100 < 0.5;
+    const nearLow = (curPrice - minRecentLow) / minRecentLow * 100 < 0.5;
 
     // Pullback requirement: wait for 1 candle of retracement
     const prevPrice = closes[i-1];
