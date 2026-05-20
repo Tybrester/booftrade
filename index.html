@@ -108,7 +108,7 @@
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 120px 5% 80px;
+      padding: 140px 5% 100px;
       position: relative;
       overflow: hidden;
     }
@@ -116,12 +116,32 @@
     .hero::before {
       content: '';
       position: absolute;
-      top: -200px; left: 50%;
+      top: -300px; left: 50%;
       transform: translateX(-50%);
-      width: 900px; height: 600px;
-      background: radial-gradient(ellipse at center, rgba(0,230,118,0.12) 0%, transparent 70%);
+      width: 1100px; height: 700px;
+      background: radial-gradient(ellipse at center, rgba(0,230,118,0.18) 0%, rgba(0,230,118,0.04) 45%, transparent 70%);
       pointer-events: none;
     }
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 180px;
+      background: linear-gradient(to bottom, transparent, var(--bg));
+      pointer-events: none;
+    }
+    .hero-stats {
+      display: flex;
+      gap: 40px;
+      margin-top: 52px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .hero-stat { text-align: center; }
+    .hero-stat-val { font-size: 1.6rem; font-weight: 900; letter-spacing: -0.03em; color: var(--text); }
+    .hero-stat-val span { color: var(--accent); }
+    .hero-stat-lbl { font-size: 0.75rem; color: var(--muted); font-weight: 500; margin-top: 2px; }
+    .hero-divider { width: 1px; background: #222; align-self: stretch; }
 
     .hero-badge {
       display: inline-flex;
@@ -166,12 +186,13 @@
     }
 
     .hero p {
-      font-size: clamp(1.15rem, 2.2vw, 1.55rem);
-      font-weight: 700;
+      font-size: clamp(1rem, 1.8vw, 1.25rem);
+      font-weight: 500;
       color: var(--muted);
-      max-width: 580px;
-      line-height: 1.65;
+      max-width: 520px;
+      line-height: 1.7;
       margin-bottom: 44px;
+      letter-spacing: 0.01em;
     }
 
     .hero-actions {
@@ -593,11 +614,33 @@
 
   <!-- HERO -->
   <section class="hero">
-    <h1>Trade Smarter. Let the<br /><span class="highlight">System Do the Work.</span></h1>
-    <p>Remove the FOMO, trade confidently.</p>
+    <div class="hero-badge">Invite-Only Access</div>
+    <h1>Trade Smarter.<br /><span class="highlight">Let the System<br />Do the Work.</span></h1>
+    <p>Automated trading systems powered by TradingView signals. No emotions, no guesswork — just execution.</p>
     <div class="hero-actions">
       <a href="apply.html" class="btn-primary">Apply for Access</a>
       <a href="#how" class="btn-secondary">See How It Works</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-val"><span>24</span>/7</div>
+        <div class="hero-stat-lbl">Always Running</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-val"><span>100</span>%</div>
+        <div class="hero-stat-lbl">Automated</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-val"><span>0</span> Emotions</div>
+        <div class="hero-stat-lbl">Pure Logic</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-val">Stocks <span>&</span> Crypto</div>
+        <div class="hero-stat-lbl">Multi-Asset</div>
+      </div>
     </div>
   </section>
 
