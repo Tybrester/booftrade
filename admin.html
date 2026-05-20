@@ -189,7 +189,7 @@
       });
       document.addEventListener('click', () => document.getElementById('user-dropdown').classList.remove('open'));
 
-      await loadUsers();
+      await Promise.all([loadUsers(), loadRequests()]);
     }
 
     async function loadUsers() {
