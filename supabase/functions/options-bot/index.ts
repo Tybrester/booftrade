@@ -2423,13 +2423,13 @@ Deno.serve(async (req) => {
               } else if (botSignal === 'boof80') {
                 // Boof 8.0: Adaptive AI Scalper — self-tunes TP/SL from trade history
                 const { data: recentTrades80 } = await supabase.from('options_trades')
-                  .select('reason, pnl, regime').eq('bot_id', bot.id as string).eq('symbol', sym)
+                  .select('reason, pnl, regime, premium_per_contract, contracts, total_cost').eq('bot_id', bot.id as string).eq('symbol', sym)
                   .not('pnl', 'is', null).order('closed_at', { ascending: false }).limit(20);
-                const trades80 = (recentTrades80 || []).map((t: any) => ({
-                  reason:  t.reason  || '',
-                  pnlPct:  Number(t.pnl) || 0,
-                  regime:  t.regime  || 'UNKNOWN',
-                }));
+                const trades80 = (recentTrades80 || []).map((t: any) => {
+                  const cost = Number(t.total_cost) || (Number(t.premium_per_contract) * Number(t.contracts) * 100);
+                  const pnlPct = cost > 0 ? (Number(t.pnl) / cost) * 100 : Number(t.pnl) || 0;
+                  return { reason: t.reason || '', pnlPct, regime: t.regime || 'UNKNOWN' };
+                });
                 const pnls80  = trades80.map((t: { pnlPct: number }) => t.pnlPct);
                 const wins80  = pnls80.filter((p: number) => p > 0).length;
                 const winRate80 = pnls80.length > 0 ? wins80 / pnls80.length : 0.5;
