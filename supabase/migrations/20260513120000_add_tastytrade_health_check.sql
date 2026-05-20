@@ -32,7 +32,7 @@ SELECT cron.schedule(
   '0 9 * * MON-FRI',  -- 9:00 AM ET, Monday-Friday
   $$SELECT net.http_get(
     url:='https://isanhutzyctcjygjhzbn.supabase.co/functions/v1/tasty-health-check',
-    headers:='{"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzYW5odXR6eWN0Y2p5Z2poemJuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjExNjM0NiwiZXhwIjoyMDkxNjkyMzQ2fQ.L0ATp-IriR708C2n3as_YXDgjHvtn_CWubbzPeSxRi0"}'::jsonb
+    headers:=('{"Authorization": "Bearer ' || current_setting('app.service_role_key', true) || '"}')::jsonb
   )$$
 );
 
