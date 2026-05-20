@@ -354,7 +354,7 @@
       </div>`;
       document.body.appendChild(modal);
       modal.querySelector('.btn-cancel').addEventListener('click', () => modal.remove());
-      modal.querySelector('.btn-confirm').addEventListener('click', () => { modal.remove(); onConfirm(); });
+      modal.querySelector('.btn-confirm').addEventListener('click', async () => { modal.remove(); await onConfirm(); });
     }
 
     async function toggleBots(userId, enable) {
