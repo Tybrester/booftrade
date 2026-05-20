@@ -546,27 +546,18 @@
       const env    = document.getElementById('alpaca-env').value;
       if (!apiKey || !secret) { errEl.textContent = 'Both API Key and Secret are required.'; errEl.style.display = 'block'; return; }
 
-      btn.textContent = 'Verifying...'; btn.disabled = true;
+      btn.textContent = 'Saving...'; btn.disabled = true;
       try {
-        // Test the keys against Alpaca's account endpoint
-        const baseUrl = env === 'live' ? 'https://api.alpaca.markets' : 'https://paper-api.alpaca.markets';
-        const testRes = await fetch(`${baseUrl}/v2/account`, {
-          headers: { 'APCA-API-KEY-ID': apiKey, 'APCA-API-SECRET-KEY': secret }
-        });
-        if (!testRes.ok) throw new Error('Invalid API keys — could not authenticate with Alpaca.');
-        const acct = await testRes.json();
-
-        // Save to broker_credentials
         await sbClient.from('broker_credentials').upsert({
           user_id: currentUser.id,
           broker: 'alpaca',
-          credentials: { api_key: apiKey, secret_key: secret, env, account_number: acct.account_number }
+          credentials: { api_key: apiKey, secret_key: secret, env }
         }, { onConflict: 'user_id,broker' });
 
         applyAlpacaUI(true, apiKey, env);
         closeAlpacaModal();
       } catch(e) {
-        errEl.textContent = e.message || 'Could not connect. Check your keys.';
+        errEl.textContent = e.message || 'Could not save credentials.';
         errEl.style.display = 'block';
       } finally {
         btn.textContent = 'Connect'; btn.disabled = false;
