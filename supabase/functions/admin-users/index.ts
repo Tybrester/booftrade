@@ -29,8 +29,20 @@ Deno.serve(async (req) => {
     if (userErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
     if (user.id !== ADMIN_USER_ID) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: corsHeaders });
 
-    // Use service role to list all users
     const adminClient = createClient(supabaseUrl, serviceKey);
+    const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
+    const action = body.action || 'list';
+
+    // Invite a user by email (called when approving an access request)
+    if (action === 'invite') {
+      const email = typeof body.email === 'string' ? body.email.trim().slice(0, 200) : '';
+      if (!email) return new Response(JSON.stringify({ error: 'email required' }), { status: 400, headers: corsHeaders });
+      const { data, error: invErr } = await adminClient.auth.admin.inviteUserByEmail(email);
+      if (invErr) return new Response(JSON.stringify({ error: invErr.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true, user: data.user?.id }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Default: list all users
     const { data: { users }, error } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
     if (error) throw error;
 

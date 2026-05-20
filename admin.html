@@ -68,6 +68,11 @@
     .action-btn:hover { border-color: var(--accent); color: var(--accent); }
     .action-btn.danger:hover { border-color: var(--red); color: var(--red); }
     .action-btn.bots-on { border-color: var(--accent); color: var(--accent); }
+    .action-btn.approve { border-color: var(--accent); color: var(--accent); }
+    .action-btn.deny { border-color: var(--red); color: var(--red); }
+    .badge-pending { background: rgba(255,200,0,0.12); color: #ffc107; }
+    .badge-approved { background: rgba(0,230,118,0.12); color: var(--accent); }
+    .badge-denied { background: rgba(255,23,68,0.12); color: var(--red); }
 
     .search-bar { display: flex; gap: 10px; margin-bottom: 16px; }
     .search-input { flex: 1; background: var(--card-bg); border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: 0.88rem; padding: 9px 14px; border-radius: 8px; outline: none; max-width: 360px; }
@@ -128,11 +133,20 @@
         <div class="page-title">Admin Panel</div>
         <div class="page-sub">Site overview and user management</div>
 
-        <div class="stats-row" style="max-width:220px;">
+        <div class="stats-row" style="max-width:480px;">
           <div class="stat-card">
             <div class="label">Total Users</div>
             <div class="value green" id="stat-users">—</div>
           </div>
+          <div class="stat-card">
+            <div class="label">Pending Requests</div>
+            <div class="value" id="stat-requests" style="color:#ffc107;">—</div>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top:8px;">Access Requests</div>
+        <div id="requests-container" style="margin-bottom:36px;">
+          <div class="empty-state">Loading...</div>
         </div>
 
         <div class="section-title">Users</div>
@@ -152,6 +166,7 @@
     const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let allUsers = [];
+    let allRequests = [];
 
     async function init() {
       const { data: { session } } = await sbClient.auth.getSession();
@@ -244,6 +259,72 @@
           }).join('')}
         </tbody>
       </table>`;
+    }
+
+    async function loadRequests() {
+      const { data } = await sbClient
+        .from('access_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+      allRequests = data || [];
+      const pending = allRequests.filter(r => r.status === 'pending').length;
+      document.getElementById('stat-requests').textContent = pending;
+      renderRequests(allRequests);
+    }
+
+    function renderRequests(requests) {
+      const container = document.getElementById('requests-container');
+      if (!requests.length) { container.innerHTML = '<div class="empty-state">No access requests yet.</div>'; return; }
+      container.innerHTML = `<table class="users-table">
+        <thead><tr>
+          <th>Name</th><th>Email</th><th>Reason</th><th>Applied</th><th>Status</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+          ${requests.map(r => {
+            const dt = new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            const badgeClass = r.status === 'approved' ? 'badge-approved' : r.status === 'denied' ? 'badge-denied' : 'badge-pending';
+            const actions = r.status === 'pending'
+              ? `<button class="action-btn approve" onclick="reviewRequest('${r.id}','${r.email}','approved')">Approve</button>
+                 <button class="action-btn danger" onclick="reviewRequest('${r.id}','${r.email}','denied')">Deny</button>`
+              : `<span style="color:#444;font-size:0.8rem;">Reviewed</span>`;
+            return `<tr>
+              <td style="font-size:0.85rem;">${r.name}</td>
+              <td style="font-size:0.85rem;">${r.email}</td>
+              <td style="font-size:0.8rem;color:var(--muted);max-width:200px;">${r.reason || '—'}</td>
+              <td style="color:#555;font-size:0.82rem;">${dt}</td>
+              <td><span class="badge ${badgeClass}">${r.status}</span></td>
+              <td>${actions}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+    }
+
+    async function reviewRequest(id, email, status) {
+      const label = status === 'approved' ? 'Approve' : 'Deny';
+      confirm(
+        `${label} Request`,
+        status === 'approved'
+          ? `Approve access for ${email}? This will create their account so they can sign up.`
+          : `Deny access for ${email}?`,
+        async () => {
+          await sbClient.from('access_requests').update({ status, reviewed_at: new Date().toISOString() }).eq('id', id);
+          if (status === 'approved') {
+            const { error } = await sbClient.auth.admin.inviteUserByEmail(email).catch(() => ({ error: 'no admin' }));
+            if (error) {
+              // Fallback: use admin-users edge function
+              const { data: { session } } = await sbClient.auth.getSession();
+              await fetch(`${SUPABASE_URL}/functions/v1/admin-users`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'invite', email })
+              });
+            }
+          }
+          await loadRequests();
+        },
+        status !== 'approved'
+      );
     }
 
     function filterUsers() {
