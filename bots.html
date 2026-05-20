@@ -3797,9 +3797,10 @@
       let displayCost = Number(tr.total_cost) || (Number(tr.premium_per_contract) * Number(tr.contracts) * 100);
       if (isOpen && currentOptionPrice && currentOptionPrice > 0) {
         displayPnl = (currentOptionPrice - Number(tr.premium_per_contract)) * Number(tr.contracts) * 100;
-      } else if (isOpen) {
-        displayPnl = null; // No real price available — don't guess
+      } else if (isOpen && displayPnl == null) {
+        // No live price and no stored pnl — leave as null (will show '—')
       }
+      // If isOpen but displayPnl was already set from tr.pnl, keep it
       const _marketOpenLabel = (() => { const s = getNextMarketOpenTime(); return s === 'Market Open' ? '' : ` <span style="opacity:0.5;font-size:0.7em">${s}</span>`; })();
       const pnlHtml = displayPnl != null
         ? `<span class="${displayPnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${displayPnl >= 0 ? '+' : ''}$${displayPnl.toFixed(2)}${isOpen ? _marketOpenLabel : ''}</span>`

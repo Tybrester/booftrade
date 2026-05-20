@@ -1789,8 +1789,21 @@ Deno.serve(async (req) => {
         alpacaKey = ac?.credentials?.api_key;
         alpacaSecret = ac?.credentials?.secret_key;
       }
-      const price = await fetchRealOptionPrice(symbol, Number(strike), expiration, option_type, '1h', user_id, 'weekly', alpacaKey, alpacaSecret);
-      return new Response(JSON.stringify({ price }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      let price = await fetchRealOptionPrice(symbol, Number(strike), expiration, option_type, '1h', user_id, 'weekly', alpacaKey, alpacaSecret);
+      if (!price || price <= 0) {
+        try {
+          const candles = await fetchCandles(symbol, '1h', 60);
+          if (candles.length) {
+            const spotPrice = candles[candles.length - 1].close;
+            const sigma = calcHistoricalVolatility(candles.map((c: any) => c.close), 20, '1h');
+            const expParts = expiration.split('-');
+            const expDate = new Date(Date.UTC(Number(expParts[0]), Number(expParts[1]) - 1, Number(expParts[2]), 20, 0, 0));
+            const T = Math.max(1 / (365 * 24 * 60), (expDate.getTime() - Date.now()) / (365 * 24 * 60 * 60 * 1000));
+            price = blackScholes(spotPrice, Number(strike), T, 0.05, sigma || 0.3, option_type as 'call' | 'put');
+          }
+        } catch (_) {}
+      }
+      return new Response(JSON.stringify({ price: price || null }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Instant TP/SL check: called immediately when user saves new thresholds
