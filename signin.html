@@ -253,7 +253,7 @@
       <div class="divider">or</div>
 
       <div class="signup-link">
-        Don't have an account? <a href="signup.html">Create one</a>
+        Don't have an account? <a href="apply.html">Apply for Access</a>
       </div>
     </div>
   </main>
@@ -294,6 +294,42 @@
       msg.style.color = '#ff1744';
       msg.style.border = '1px solid rgba(255,23,68,0.3)';
     }
+
+    // Handle invite / password reset token in URL hash
+    (async () => {
+      const hash = window.location.hash;
+      if (hash && (hash.includes('type=invite') || hash.includes('type=recovery'))) {
+        const params = new URLSearchParams(hash.replace('#', ''));
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        if (accessToken) {
+          await sbClient.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' });
+          // Show set-password UI
+          document.querySelector('.card-header h1').innerHTML = 'Set Your <span>Password.</span>';
+          document.querySelector('.card-header p').textContent = 'Choose a password to complete your account setup.';
+          document.getElementById('email').closest('.form-group').style.display = 'none';
+          document.querySelector('.forgot').style.display = 'none';
+          document.querySelector('.btn-submit').textContent = 'Set Password & Sign In';
+          document.querySelector('.divider').style.display = 'none';
+          document.querySelector('.signup-link').style.display = 'none';
+          // Override submit
+          form.onsubmit = async (e) => {
+            e.preventDefault();
+            const pw = document.getElementById('password').value;
+            if (pw.length < 8) return showMsg('Password must be at least 8 characters.');
+            const btn = form.querySelector('.btn-submit');
+            btn.textContent = 'Saving...';
+            btn.disabled = true;
+            const { error } = await sbClient.auth.updateUser({ password: pw });
+            btn.textContent = 'Set Password & Sign In';
+            btn.disabled = false;
+            if (error) return showMsg(error.message);
+            window.location.href = 'dashboard.html';
+          };
+          return;
+        }
+      }
+    })();
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
