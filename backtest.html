@@ -397,6 +397,8 @@ function computeBoof20Signals(candles, direction='both', thresholdBuy=0.005, thr
 
 function computeBoof30Signals(candles) {
   const closes  = candles.map(c => c.close);
+  const highs   = candles.map(c => c.high);
+  const lows    = candles.map(c => c.low);
   const volumes = candles.map(c => c.volume || 1000000);
   const n = closes.length;
   const out = new Array(n).fill(0);
