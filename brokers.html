@@ -25,7 +25,7 @@
     #app { display: none; flex-direction: column; height: 100vh; overflow: hidden; }
 
     nav { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 72px; background: rgba(10,10,10,0.95); border-bottom: 1px solid var(--border); flex-shrink: 0; position: sticky; top: 0; z-index: 100; }
-    .logo { font-size: 1.6rem; font-weight: 900; letter-spacing: -0.02em; color: var(--text); text-decoration: none; }
+    .logo { font-size: 1.6rem; font-weight: 900; letter-spacing: -0.02em; color: var(--text); text-decoration: none;   color: var(--text); text-decoration: none;}
     .logo span { color: var(--accent); }
 
     .layout { display: flex; flex: 1; overflow: hidden; }
@@ -93,7 +93,7 @@
     .sidebar-drawer { position: fixed; top: 0; left: 0; width: 260px; height: 100vh; background: var(--surface); border-right: 1px solid var(--border); z-index: 201; transform: translateX(-100%); transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); display: flex; flex-direction: column; padding: 16px 0; overflow-y: auto; }
     .sidebar-drawer.open { transform: translateX(0); }
     .sidebar-drawer .drawer-close { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px 16px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
-    .sidebar-drawer .drawer-close .logo { font-size: 1.2rem; font-weight: 900; color: var(--text); text-decoration: none; }
+    .sidebar-drawer .drawer-close .logo { font-size: 1.2rem; font-weight: 900; color: var(--text); text-decoration: none;   color: var(--text); text-decoration: none;}
     .sidebar-drawer .drawer-close .logo span { color: var(--accent); }
     .sidebar-drawer .drawer-close button { background: none; border: none; color: var(--muted); font-size: 1.4rem; cursor: pointer; line-height: 1; }
     .pw-wrap { position: relative; }
@@ -137,7 +137,7 @@
 
     <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeDrawer()"></div>
     <div class="sidebar-drawer" id="sidebar-drawer">
-      <div class="drawer-close"><a href="dashboard.html" class="logo">Boof<span>Capital</span><i class="fa-solid fa-bull" style="margin-left:7px;font-size:0.95em;vertical-align:middle;color:white;"></i></a><button onclick="closeDrawer()">✕</button></div>
+      <div class="drawer-close"><a href="dashboard.html" class="logo">Boof<span style="color:var(--accent);">Capital</span><i class="fa-solid fa-bull" style="margin-left:7px;font-size:0.95em;vertical-align:middle;color:white;"></i></a><button onclick="closeDrawer()">✕</button></div>
       <div class="sidebar-section">Menu</div>
       <a href="dashboard.html" class="sidebar-item">Dashboard</a>
       <a href="trades.html" class="sidebar-item">Trades</a>
