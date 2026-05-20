@@ -17,12 +17,27 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { user_id, symbol, side, qty, notional, limit_price, order_type } = await req.json();
+    const cl = Number(req.headers.get('content-length') || 0);
+    if (cl > 8192) return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const raw = await req.text();
+    if (raw.length > 8192) return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    let parsed: any;
+    try { parsed = JSON.parse(raw); } catch { return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
+    const user_id    = typeof parsed.user_id === 'string' ? parsed.user_id.trim().slice(0, 64) : '';
+    const symbol     = typeof parsed.symbol === 'string' ? parsed.symbol.toUpperCase().replace(/[^A-Z0-9./:!-]/g, '').slice(0, 20) : '';
+    const side       = typeof parsed.side === 'string' && ['buy','sell'].includes(parsed.side.toLowerCase()) ? parsed.side.toLowerCase() : '';
+    const order_type = typeof parsed.order_type === 'string' ? parsed.order_type.toLowerCase() : 'market';
+    const qty        = parsed.qty != null ? Number(parsed.qty) : null;
+    const notional   = parsed.notional != null ? Number(parsed.notional) : null;
+    const limit_price = parsed.limit_price != null ? Number(parsed.limit_price) : null;
     if (!user_id || !symbol || !side) {
       return new Response(JSON.stringify({ error: 'user_id, symbol, side are required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+    if (!/^[0-9a-f-]{36}$/i.test(user_id)) return new Response(JSON.stringify({ error: 'Invalid user_id' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (qty !== null && (isNaN(qty) || qty <= 0 || qty > 100000)) return new Response(JSON.stringify({ error: 'Invalid qty' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (notional !== null && (isNaN(notional) || notional <= 0 || notional > 1000000)) return new Response(JSON.stringify({ error: 'Invalid notional' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     // Fetch Alpaca credentials
     const { data: creds } = await supabase

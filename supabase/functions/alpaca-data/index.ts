@@ -26,13 +26,23 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { user_id, symbol, interval = '1h', bars = 150, type = 'candles' } = await req.json();
-    
+    const adCl = Number(req.headers.get('content-length') || 0);
+    if (adCl > 8192) return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const adRaw = await req.text();
+    if (adRaw.length > 8192) return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    let adParsed: any;
+    try { adParsed = JSON.parse(adRaw); } catch { return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
+    const user_id  = typeof adParsed.user_id === 'string' ? adParsed.user_id.trim().slice(0, 64) : '';
+    const symbol   = typeof adParsed.symbol === 'string' ? adParsed.symbol.toUpperCase().replace(/[^A-Z0-9./:!=-]/g, '').slice(0, 30) : '';
+    const interval = typeof adParsed.interval === 'string' ? adParsed.interval : '1h';
+    const bars     = Math.min(Math.max(1, Number(adParsed.bars) || 150), 1000);
+    const type     = typeof adParsed.type === 'string' ? adParsed.type : 'candles';
     if (!user_id || !symbol) {
       return new Response(JSON.stringify({ error: 'user_id and symbol are required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+    if (!/^[0-9a-f-]{36}$/i.test(user_id)) return new Response(JSON.stringify({ error: 'Invalid user_id' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     // Check if it's a crypto symbol
     const cryptoSymbols = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XRP-USD', 'BNB-USD', 'DOGE-USD', 'ADA-USD', 'AVAX-USD', 'LINK-USD', 'MATIC-USD', 'LTC-USD', 'UNI-USD', 'SHIB-USD'];

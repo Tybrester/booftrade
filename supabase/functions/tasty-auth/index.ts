@@ -31,12 +31,22 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { username, password, mfa_code, user_id } = await req.json();
+    const contentLength = Number(req.headers.get('content-length') || 0);
+    if (contentLength > 8192) return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const rawBody = await req.text();
+    if (rawBody.length > 8192) return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    let parsed: any;
+    try { parsed = JSON.parse(rawBody); } catch { return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
+    const username = typeof parsed.username === 'string' ? parsed.username.trim().slice(0, 128) : '';
+    const password = typeof parsed.password === 'string' ? parsed.password.slice(0, 256) : '';
+    const mfa_code = typeof parsed.mfa_code === 'string' ? parsed.mfa_code.replace(/\D/g, '').slice(0, 8) : '';
+    const user_id  = typeof parsed.user_id  === 'string' ? parsed.user_id.trim().slice(0, 64) : '';
     if (!username || !password || !user_id) {
       return new Response(JSON.stringify({ error: 'Missing fields' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+    if (!/^[0-9a-f-]{36}$/i.test(user_id)) return new Response(JSON.stringify({ error: 'Invalid user_id' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,

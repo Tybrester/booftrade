@@ -50,10 +50,16 @@ Deno.serve(async (req) => {
     }
 
     // Parse TradingView payload — accept common field name variants
-    const body = await req.json();
+    const wCl = Number(req.headers.get('content-length') || 0);
+    if (wCl > 65536) return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const wRaw = await req.text();
+    if (wRaw.length > 65536) return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    let body: any;
+    try { body = JSON.parse(wRaw); } catch { return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
     console.log('[Webhook Debug] Raw payload:', JSON.stringify(body));
-    const action    = (body.action || body.side || body.signal || body.direction_action || 'buy').toLowerCase();
-    const symbol    = (body.symbol || body.ticker || body.instrument || body.asset || '').toUpperCase();
+    const rawAction = (body.action || body.side || body.signal || body.direction_action || 'buy').toLowerCase();
+    const action    = ['buy','sell','close'].includes(rawAction) ? rawAction : 'buy';
+    const symbol    = (body.symbol || body.ticker || body.instrument || body.asset || '').toString().toUpperCase().replace(/[^A-Z0-9./:!=-]/g, '').slice(0, 30);
     
     // Helper function to normalize symbols for comparison
     function normalizeSymbolForComparison(sym) {

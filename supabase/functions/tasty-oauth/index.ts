@@ -109,14 +109,22 @@ Deno.serve(async (req) => {
 
   // Personal Grant flow: user provides refresh token directly
   if (action === 'connect') {
-    const { user_id, refresh_token, client_secret } = await req.json();
-    
+    const cl = Number(req.headers.get('content-length') || 0);
+    if (cl > 8192) return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const raw = await req.text();
+    if (raw.length > 8192) return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    let parsedConnect: any;
+    try { parsedConnect = JSON.parse(raw); } catch { return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
+    const user_id       = typeof parsedConnect.user_id === 'string' ? parsedConnect.user_id.trim().slice(0, 64) : '';
+    const refresh_token = typeof parsedConnect.refresh_token === 'string' ? parsedConnect.refresh_token.trim().slice(0, 2048) : '';
+    const client_secret = typeof parsedConnect.client_secret === 'string' ? parsedConnect.client_secret.trim().slice(0, 512) : '';
     if (!user_id || !refresh_token || !client_secret) {
       return new Response(JSON.stringify({ error: 'user_id, refresh_token, and client_secret required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+    if (!/^[0-9a-f-]{36}$/i.test(user_id)) return new Response(JSON.stringify({ error: 'Invalid user_id' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
