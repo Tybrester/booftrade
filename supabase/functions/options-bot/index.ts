@@ -2467,7 +2467,7 @@ Deno.serve(async (req) => {
                   const updatedRules = ruleIdx >= 0
                     ? currentRules.map((r: any, idx: number) => idx === ruleIdx ? adaptedRule : r)
                     : [...currentRules, adaptedRule];
-                  await supabase.from('options_bots').update({ symbol_rules: updatedRules }).eq('id', bot.id as string);
+                  await supabase.from('options_bots').update({ symbol_rules: updatedRules, last_ci: Math.round(boof80result.choppiness * 10) / 10 }).eq('id', bot.id as string);
                   console.log(`[Boof8.0] Adaptive TP/SL written: ${sym} tp=${adaptedRule.tp}% sl=${adaptedRule.sl}% ci=${boof80result.choppiness.toFixed(1)} pw=${boof80result.patternWeight.toFixed(2)}`);
                 }
               } else if (botSignal === 'test_always_buy') {
