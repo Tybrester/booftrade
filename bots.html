@@ -4016,6 +4016,7 @@
         const { data: priceSession } = await sbClient.auth.getSession();
         const priceToken = priceSession?.session?.access_token || SUPABASE_ANON_KEY;
         const priceUserId = priceSession?.session?.user?.id || currentUser?.id;
+        console.log(`[Activity] Fetching live prices for ${openT.length} open trades, userId=${priceUserId}`);
         await Promise.all(openT.map(async (trade) => {
           try {
             const res = await fetch(`${SUPABASE_URL}/functions/v1/options-bot`, {
@@ -4024,8 +4025,11 @@
               body: JSON.stringify({ action: 'get_option_price', symbol: trade.symbol, strike: trade.strike, expiration: trade.expiration_date, option_type: trade.option_type, user_id: priceUserId })
             });
             const json = await res.json();
+            console.log(`[Activity] Price fetch ${trade.symbol} $${trade.strike} ${trade.option_type}: status=${res.status} response=`, json);
             if (json?.price && json.price > 0) optionPrices[trade.symbol + '_' + trade.strike + '_' + trade.option_type] = json.price;
-          } catch (_) {}
+          } catch (err) {
+            console.log(`[Activity] Price fetch error for ${trade.symbol} $${trade.strike}:`, err);
+          }
         }));
 
         for (const trade of openT) {
