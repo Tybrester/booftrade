@@ -336,6 +336,14 @@
         ? `Approve access for ${email}? An invite email will be sent so they can set up their account.`
         : `Deny access for ${email}?`;
       showConfirm(`${label} Request`, msg, async () => {
+        // Optimistically update UI immediately
+        const req = allRequests.find(r => r.id === id);
+        if (req) { req.status = status; req.reviewed_at = new Date().toISOString(); }
+        renderRequests(allRequests);
+        const pending = allRequests.filter(r => r.status === 'pending').length;
+        document.getElementById('stat-requests').textContent = pending;
+
+        // Persist to DB
         await sbClient.from('access_requests').update({ status, reviewed_at: new Date().toISOString() }).eq('id', id);
         if (status === 'approved') {
           const { data: { session } } = await sbClient.auth.getSession();
@@ -353,7 +361,6 @@
             alert('Invite failed: ' + (json.error || res.status));
           }
         }
-        await loadRequests();
       }, status !== 'approved');
     }
 
