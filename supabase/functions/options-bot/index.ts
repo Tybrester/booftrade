@@ -537,25 +537,32 @@ function generateSignalBoof30(candles: Candle[], tradeDirection = 'both'): { sig
   const tooExtendedUp = priceVsEma > 0.5; // price > 0.5% above EMA21
   const tooExtendedDown = priceVsEma < -0.5; // price < 0.5% below EMA21
 
-  // ── PULLBACK REQUIREMENT: wait for 2 consecutive candles of retracement ──
+  // ── DISTANCE FROM HIGH/LOW FILTER: prevent buying at exact top / selling at exact bottom ──
+  const recentHighs = highs.slice(-5);
+  const recentLows = lows.slice(-5);
+  const maxRecentHigh = Math.max(...recentHighs);
+  const minRecentLow = Math.min(...recentLows);
+  const nearHigh = (maxRecentHigh - closes[i]) / maxRecentHigh * 100 < 0.3; // within 0.3% of recent high
+  const nearLow = (closes[i] - minRecentLow) / minRecentLow * 100 < 0.3; // within 0.3% of recent low
+
+  // ── PULLBACK REQUIREMENT: wait for 1 candle of retracement ──
   const prevPrice = closes[i-1];
   const prev2Price = closes[i-2];
-  const prev3Price = closes[i-3];
-  const isPullbackUp = closes[i] < prevPrice && prevPrice < prev2Price && prev2Price > prev3Price; // price pulled back for 2 candles from high
-  const isPullbackDown = closes[i] > prevPrice && prevPrice > prev2Price && prev2Price < prev3Price; // price pulled back for 2 candles from low
+  const isPullbackUp = closes[i] < prevPrice && prevPrice > prev2Price; // price pulled back from high
+  const isPullbackDown = closes[i] > prevPrice && prevPrice < prev2Price; // price pulled back from low
 
   let sigVal = 0;
   if (regime === 'Trend' || regime === 'HighVol') {
-    if ((emaCrossUp  || contBull) && curRSI > 40 && curRSI < 75 && !tooExtendedUp && isPullbackUp) sigVal = 1;
-    else if ((emaCrossDown || contBear) && curRSI < 60 && curRSI > 25 && !tooExtendedDown && isPullbackDown) sigVal = -1;
+    if ((emaCrossUp  || contBull) && curRSI > 40 && curRSI < 75 && !tooExtendedUp && !nearHigh && isPullbackUp) sigVal = 1;
+    else if ((emaCrossDown || contBear) && curRSI < 60 && curRSI > 25 && !tooExtendedDown && !nearLow && isPullbackDown) sigVal = -1;
   } else {
     // Range: BB bounce
     const sma20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
     const std20 = Math.sqrt(closes.slice(-20).reduce((a, b) => a + (b - sma20) ** 2, 0) / 20);
     const bbLower = sma20 - 2 * std20;
     const bbUpper = sma20 + 2 * std20;
-    if (closes[i] <= bbLower * 1.005 && curRSI < 38 && !tooExtendedDown && isPullbackUp) sigVal = 1;
-    else if (closes[i] >= bbUpper * 0.995 && curRSI > 62 && !tooExtendedUp && isPullbackDown) sigVal = -1;
+    if (closes[i] <= bbLower * 1.005 && curRSI < 38 && !tooExtendedDown && !nearLow && isPullbackUp) sigVal = 1;
+    else if (closes[i] >= bbUpper * 0.995 && curRSI > 62 && !tooExtendedUp && !nearHigh && isPullbackDown) sigVal = -1;
   }
 
   // Volume gate — skip thin volume
@@ -995,14 +1002,24 @@ function generateSignalBoof60(
     }
   }
 
-  // ── FACTOR 9: PULLBACK REQUIREMENT: wait for 2 consecutive candles of retracement ──
-  const isPullbackUp = curClose < prevClose && prevClose < prev2Close && prev2Close > prev3Close; // price pulled back for 2 candles from high
-  const isPullbackDown = curClose > prevClose && prevClose > prev2Close && prev2Close < prev3Close; // price pulled back for 2 candles from low
-  if (trendBias === 'up' && !isPullbackUp) {
-    return { signal: 'none', price: curClose, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: BUY blocked — no pullback detected (cur=${curClose.toFixed(2)} prev=${prevClose.toFixed(2)} prev2=${prev2Close.toFixed(2)})` };
+  // ── FACTOR 9: DISTANCE FROM HIGH/LOW FILTER: prevent buying at exact top / selling at exact bottom ──
+  const recentHighs = highs.slice(-5);
+  const recentLows = lows.slice(-5);
+  const maxRecentHigh = Math.max(...recentHighs);
+  const minRecentLow = Math.min(...recentLows);
+  const nearHigh = (maxRecentHigh - curClose) / maxRecentHigh * 100 < 0.3; // within 0.3% of recent high
+  const nearLow = (curClose - minRecentLow) / minRecentLow * 100 < 0.3; // within 0.3% of recent low
+
+  // ── FACTOR 10: PULLBACK REQUIREMENT: wait for 1 candle of retracement ──
+  const isPullbackUp = curClose < prevClose && prevClose > prev2Close; // price pulled back from high
+  const isPullbackDown = curClose > prevClose && prevClose < prev2Close; // price pulled back from low
+  if (trendBias === 'up' && (!isPullbackUp || nearHigh)) {
+    const reason = nearHigh ? 'BUY blocked — price too close to recent high' : 'BUY blocked — no pullback detected';
+    return { signal: 'none', price: curClose, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: ${reason} (cur=${curClose.toFixed(2)} prev=${prevClose.toFixed(2)} prev2=${prev2Close.toFixed(2)})` };
   }
-  if (trendBias === 'down' && !isPullbackDown) {
-    return { signal: 'none', price: curClose, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: SELL blocked — no pullback detected (cur=${curClose.toFixed(2)} prev=${prevClose.toFixed(2)} prev2=${prev2Close.toFixed(2)})` };
+  if (trendBias === 'down' && (!isPullbackDown || nearLow)) {
+    const reason = nearLow ? 'SELL blocked — price too close to recent low' : 'SELL blocked — no pullback detected';
+    return { signal: 'none', price: curClose, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: ${reason} (cur=${curClose.toFixed(2)} prev=${prevClose.toFixed(2)} prev2=${prev2Close.toFixed(2)})` };
   }
 
   // ── APPLY TRADE DIRECTION OVERRIDE ──

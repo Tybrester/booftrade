@@ -451,27 +451,34 @@ function computeBoof30Signals(candles) {
     const regime = rm[clusters[localIdx]];
     if (!regime) continue;
 
-    // Pullback requirement: wait for 2 consecutive candles of retracement
+    // Distance from high/low filter: prevent buying at exact top / selling at exact bottom
     const curPrice = closes[ci];
+    const recentHighs = highs.slice(ci-5, ci+1);
+    const recentLows = lows.slice(ci-5, ci+1);
+    const maxRecentHigh = Math.max(...recentHighs);
+    const minRecentLow = Math.min(...recentLows);
+    const nearHigh = (maxRecentHigh - curPrice) / maxRecentHigh * 100 < 0.3;
+    const nearLow = (curPrice - minRecentLow) / minRecentLow * 100 < 0.3;
+
+    // Pullback requirement: wait for 1 candle of retracement
     const prevPrice = closes[ci-1];
     const prev2Price = closes[ci-2];
-    const prev3Price = closes[ci-3];
-    const isPullbackUp = curPrice < prevPrice && prevPrice < prev2Price && prev2Price > prev3Price;
-    const isPullbackDown = curPrice > prevPrice && prevPrice > prev2Price && prev2Price < prev3Price;
+    const isPullbackUp = curPrice < prevPrice && prevPrice > prev2Price;
+    const isPullbackDown = curPrice > prevPrice && prevPrice < prev2Price;
 
-    // State every bar — use RSI + slope direction for signal + pullback requirement
-    if (regime==='Trend')   { 
-      if (maSlope[ci]>0 && isPullbackUp) out[ci] = 1;
-      else if (maSlope[ci]<0 && isPullbackDown) out[ci] = -1;
+    // State every bar — use RSI + slope direction for signal + pullback + high/low filter
+    if (regime==='Trend')   {
+      if (maSlope[ci]>0 && isPullbackUp && !nearHigh) out[ci] = 1;
+      else if (maSlope[ci]<0 && isPullbackDown && !nearLow) out[ci] = -1;
     }
-    if (regime==='Range')   { 
-      if (rsi[ci]<45 && isPullbackUp) out[ci] = 1;
-      else if (rsi[ci]>55 && isPullbackDown) out[ci] = -1;
+    if (regime==='Range')   {
+      if (rsi[ci]<45 && isPullbackUp && !nearLow) out[ci] = 1;
+      else if (rsi[ci]>55 && isPullbackDown && !nearHigh) out[ci] = -1;
       else out[ci] = 0;
     }
-    if (regime==='HighVol') { 
-      if (maSlope[ci]>0 && isPullbackUp) out[ci] = 1;
-      else if (maSlope[ci]<0 && isPullbackDown) out[ci] = -1;
+    if (regime==='HighVol') {
+      if (maSlope[ci]>0 && isPullbackUp && !nearHigh) out[ci] = 1;
+      else if (maSlope[ci]<0 && isPullbackDown && !nearLow) out[ci] = -1;
     }
   }
   return out;
@@ -716,17 +723,24 @@ function computeBoof60Signals(candles) {
     const momUp = priceChange > 0.001;
     const momDown = priceChange < -0.001;
 
-    // Pullback requirement: wait for 2 consecutive candles of retracement
+    // Distance from high/low filter: prevent buying at exact top / selling at exact bottom
     const curPrice = closes[i];
+    const recentHighs = highs.slice(i-5, i+1);
+    const recentLows = lows.slice(i-5, i+1);
+    const maxRecentHigh = Math.max(...recentHighs);
+    const minRecentLow = Math.min(...recentLows);
+    const nearHigh = (maxRecentHigh - curPrice) / maxRecentHigh * 100 < 0.3;
+    const nearLow = (curPrice - minRecentLow) / minRecentLow * 100 < 0.3;
+
+    // Pullback requirement: wait for 1 candle of retracement
     const prevPrice = closes[i-1];
     const prev2Price = closes[i-2];
-    const prev3Price = closes[i-3];
-    const isPullbackUp = curPrice < prevPrice && prevPrice < prev2Price && prev2Price > prev3Price;
-    const isPullbackDown = curPrice > prevPrice && prevPrice > prev2Price && prev2Price < prev3Price;
+    const isPullbackUp = curPrice < prevPrice && prevPrice > prev2Price;
+    const isPullbackDown = curPrice > prevPrice && prevPrice < prev2Price;
 
     // Generate signal
-    if (trendUp && macdBull && momUp && isPullbackUp) out[i] = 1;
-    else if (trendDown && macdBear && momDown && isPullbackDown) out[i] = -1;
+    if (trendUp && macdBull && momUp && isPullbackUp && !nearHigh) out[i] = 1;
+    else if (trendDown && macdBear && momDown && isPullbackDown && !nearLow) out[i] = -1;
   }
   return out;
 }
