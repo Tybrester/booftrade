@@ -532,18 +532,29 @@ function generateSignalBoof30(candles: Candle[], tradeDirection = 'both'): { sig
   const contBull = ema9Now > ema21Now && maSlope > minSlope && closes[i] > closes[i-1];
   const contBear = ema9Now < ema21Now && maSlope < -minSlope && closes[i] < closes[i-1];
 
+  // ── EMA DISTANCE FILTER: prevent buying tops / selling bottoms ──
+  const priceVsEma = (closes[i] - ema21Now) / ema21Now * 100;
+  const tooExtendedUp = priceVsEma > 0.5; // price > 0.5% above EMA21
+  const tooExtendedDown = priceVsEma < -0.5; // price < 0.5% below EMA21
+
+  // ── PULLBACK REQUIREMENT: wait for 1 candle of retracement ──
+  const prevPrice = closes[i-1];
+  const prev2Price = closes[i-2];
+  const isPullbackUp = closes[i] < prevPrice && prevPrice > prev2Price; // price pulled back from high
+  const isPullbackDown = closes[i] > prevPrice && prevPrice < prev2Price; // price pulled back from low
+
   let sigVal = 0;
   if (regime === 'Trend' || regime === 'HighVol') {
-    if ((emaCrossUp  || contBull) && curRSI > 40 && curRSI < 75) sigVal = 1;
-    else if ((emaCrossDown || contBear) && curRSI < 60 && curRSI > 25) sigVal = -1;
+    if ((emaCrossUp  || contBull) && curRSI > 40 && curRSI < 75 && !tooExtendedUp && isPullbackUp) sigVal = 1;
+    else if ((emaCrossDown || contBear) && curRSI < 60 && curRSI > 25 && !tooExtendedDown && isPullbackDown) sigVal = -1;
   } else {
     // Range: BB bounce
     const sma20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
     const std20 = Math.sqrt(closes.slice(-20).reduce((a, b) => a + (b - sma20) ** 2, 0) / 20);
     const bbLower = sma20 - 2 * std20;
     const bbUpper = sma20 + 2 * std20;
-    if (closes[i] <= bbLower * 1.005 && curRSI < 38) sigVal = 1;
-    else if (closes[i] >= bbUpper * 0.995 && curRSI > 62) sigVal = -1;
+    if (closes[i] <= bbLower * 1.005 && curRSI < 38 && !tooExtendedDown && isPullbackUp) sigVal = 1;
+    else if (closes[i] >= bbUpper * 0.995 && curRSI > 62 && !tooExtendedUp && isPullbackDown) sigVal = -1;
   }
 
   // Volume gate — skip thin volume
