@@ -980,6 +980,29 @@ function generateSignalBoof60(
     return { signal: 'none', price: curClose, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: Volume too low (cur=${curVol} < 80% avg=${(avgVol*0.8).toFixed(0)})` };
   }
 
+  // ── FACTOR 8: EMA DISTANCE FILTER: prevent buying tops / selling bottoms ──
+  if (ema15Val > 0) {
+    const priceVsEma = (curClose - ema15Val) / ema15Val * 100;
+    const tooExtendedUp = priceVsEma > 0.5; // price > 0.5% above EMA
+    const tooExtendedDown = priceVsEma < -0.5; // price < 0.5% below EMA
+    if (trendBias === 'up' && tooExtendedUp) {
+      return { signal: 'none', price: curClose, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: BUY blocked — price too extended above EMA (${priceVsEma.toFixed(2)}%)` };
+    }
+    if (trendBias === 'down' && tooExtendedDown) {
+      return { signal: 'none', price: curClose, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: SELL blocked — price too extended below EMA (${priceVsEma.toFixed(2)}%)` };
+    }
+  }
+
+  // ── FACTOR 9: PULLBACK REQUIREMENT: wait for 1 candle of retracement ──
+  const isPullbackUp = curClose < prevClose && prevClose > prev2Close; // price pulled back from high
+  const isPullbackDown = curClose > prevClose && prevClose < prev2Close; // price pulled back from low
+  if (trendBias === 'up' && !isPullbackUp) {
+    return { signal: 'none', price: curClose, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: BUY blocked — no pullback detected (cur=${curClose.toFixed(2)} prev=${prevClose.toFixed(2)} prev2=${prev2Close.toFixed(2)})` };
+  }
+  if (trendBias === 'down' && !isPullbackDown) {
+    return { signal: 'none', price: curClose, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: SELL blocked — no pullback detected (cur=${curClose.toFixed(2)} prev=${prevClose.toFixed(2)} prev2=${prev2Close.toFixed(2)})` };
+  }
+
   // ── APPLY TRADE DIRECTION OVERRIDE ──
   let signal: 'buy' | 'sell' | 'none' = trendBias === 'up' ? 'buy' : 'sell';
   if (tradeDirection === 'long' && signal === 'sell') signal = 'none';
