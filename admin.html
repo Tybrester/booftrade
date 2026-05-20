@@ -278,7 +278,7 @@
       if (!requests.length) { container.innerHTML = '<div class="empty-state">No access requests yet.</div>'; return; }
       container.innerHTML = `<table class="users-table">
         <thead><tr>
-          <th>Name</th><th>Email</th><th>Reason</th><th>Applied</th><th>Status</th><th>Actions</th>
+          <th>Name</th><th>Email</th><th>Reason</th><th>Applied</th><th>Status</th><th>Actions</th><th></th>
         </tr></thead>
         <tbody>
           ${requests.map(r => {
@@ -295,10 +295,18 @@
               <td style="color:#555;font-size:0.82rem;">${dt}</td>
               <td><span class="badge ${badgeClass}">${r.status}</span></td>
               <td>${actions}</td>
+              <td><button class="action-btn danger" onclick="deleteRequest('${r.id}')">Delete</button></td>
             </tr>`;
           }).join('')}
         </tbody>
       </table>`;
+    }
+
+    async function deleteRequest(id) {
+      showConfirm('Delete Request', 'Permanently delete this access request?', async () => {
+        await sbClient.from('access_requests').delete().eq('id', id);
+        await loadRequests();
+      }, true);
     }
 
     async function reviewRequest(id, email, status) {
