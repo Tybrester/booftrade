@@ -451,10 +451,28 @@ function computeBoof30Signals(candles) {
     const regime = rm[clusters[localIdx]];
     if (!regime) continue;
 
-    // State every bar — use RSI + slope direction for signal
-    if (regime==='Trend')   { out[ci] = maSlope[ci]>0 ? 1 : -1; }
-    if (regime==='Range')   { out[ci] = rsi[ci]<45 ? 1 : rsi[ci]>55 ? -1 : 0; }
-    if (regime==='HighVol') { out[ci] = maSlope[ci]>0 ? 1 : -1; }
+    // Pullback requirement: wait for 2 consecutive candles of retracement
+    const curPrice = closes[ci];
+    const prevPrice = closes[ci-1];
+    const prev2Price = closes[ci-2];
+    const prev3Price = closes[ci-3];
+    const isPullbackUp = curPrice < prevPrice && prevPrice < prev2Price && prev2Price > prev3Price;
+    const isPullbackDown = curPrice > prevPrice && prevPrice > prev2Price && prev2Price < prev3Price;
+
+    // State every bar — use RSI + slope direction for signal + pullback requirement
+    if (regime==='Trend')   { 
+      if (maSlope[ci]>0 && isPullbackUp) out[ci] = 1;
+      else if (maSlope[ci]<0 && isPullbackDown) out[ci] = -1;
+    }
+    if (regime==='Range')   { 
+      if (rsi[ci]<45 && isPullbackUp) out[ci] = 1;
+      else if (rsi[ci]>55 && isPullbackDown) out[ci] = -1;
+      else out[ci] = 0;
+    }
+    if (regime==='HighVol') { 
+      if (maSlope[ci]>0 && isPullbackUp) out[ci] = 1;
+      else if (maSlope[ci]<0 && isPullbackDown) out[ci] = -1;
+    }
   }
   return out;
 }
@@ -698,9 +716,17 @@ function computeBoof60Signals(candles) {
     const momUp = priceChange > 0.001;
     const momDown = priceChange < -0.001;
 
+    // Pullback requirement: wait for 2 consecutive candles of retracement
+    const curPrice = closes[i];
+    const prevPrice = closes[i-1];
+    const prev2Price = closes[i-2];
+    const prev3Price = closes[i-3];
+    const isPullbackUp = curPrice < prevPrice && prevPrice < prev2Price && prev2Price > prev3Price;
+    const isPullbackDown = curPrice > prevPrice && prevPrice > prev2Price && prev2Price < prev3Price;
+
     // Generate signal
-    if (trendUp && macdBull && momUp) out[i] = 1;
-    else if (trendDown && macdBear && momDown) out[i] = -1;
+    if (trendUp && macdBull && momUp && isPullbackUp) out[i] = 1;
+    else if (trendDown && macdBear && momDown && isPullbackDown) out[i] = -1;
   }
   return out;
 }
