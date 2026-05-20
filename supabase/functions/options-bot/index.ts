@@ -1299,8 +1299,8 @@ async function fetchRealOptionPrice(symbol: string, strike: number, expiration: 
   
   // Black-Scholes with realistic IV — calibrated by VIX + expiry type
   try {
-    // Always fetch candles for historical vol calculation
-    const candles = await fetchCandles(symbol, interval, 60);
+    // Always fetch candles for historical vol calculation — pass Alpaca keys if available
+    const candles = await fetchCandles(symbol, interval, 60, alpacaApiKey, alpacaSecretKey);
     if (!candles.length) return 0;
 
     // Use Alpaca live spot price if available (much more accurate than stale Yahoo candle close)
@@ -1794,6 +1794,7 @@ Deno.serve(async (req) => {
       const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
       const detectedExpiryType = expiration === todayStr ? '0dte' : expiration === tomorrowStr ? '1dte' : 'weekly';
       let price = await fetchRealOptionPrice(symbol, Number(strike), expiration, option_type, '1h', user_id, detectedExpiryType, alpacaKey, alpacaSecret);
+      console.log(`[get_option_price] ${symbol} ${option_type} $${strike} exp=${expiration} type=${detectedExpiryType} alpacaKey=${!!alpacaKey} => price=${price}`);
       return new Response(JSON.stringify({ price: price > 0 ? price : null }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
