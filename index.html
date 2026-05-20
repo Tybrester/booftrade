@@ -381,6 +381,28 @@
 
     /* ── HOW IT WORKS ── */
     .how-section { background: var(--surface); }
+    .how-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 48px;
+      flex-wrap: wrap;
+    }
+    .how-tab {
+      padding: 10px 22px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .how-tab:hover { border-color: #444; color: var(--text); }
+    .how-tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .how-panel { display: none; }
+    .how-panel.active { display: block; }
 
     .steps {
       display: flex;
@@ -703,35 +725,114 @@
 
   <!-- HOW IT WORKS -->
   <section id="how" class="how-section">
-    <div class="section-tag">Getting Started</div>
-    <h2 class="section-title">Up and Running<br />in 4 Steps.</h2>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-body">
-          <h3>Find a system you're comfortable with</h3>
-          <p>Use a default indicator from TradingView, or set up your own TradingView account to find a community indicator that works for you.</p>
+    <div class="section-tag">How It Works</div>
+    <h2 class="section-title">Pick Your Product.<br />We Handle the Rest.</h2>
+    <p class="section-sub">Three ways to automate your trading — each built for a different strategy.</p>
+
+    <div class="how-tabs">
+      <button class="how-tab active" onclick="switchTab('systems')">📊 TradingView Systems</button>
+      <button class="how-tab" onclick="switchTab('stockbots')">🤖 Stock / Crypto Bots</button>
+      <button class="how-tab" onclick="switchTab('optionsbots')">⚡ Options Bots</button>
+    </div>
+
+    <!-- SYSTEMS -->
+    <div class="how-panel active" id="panel-systems">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Connect TradingView</h3>
+            <p>Link your TradingView account and pick any indicator or strategy — built-in or community-made.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Create a System on BoofCapital</h3>
+            <p>Name your system, choose your broker, set your position size and asset. Takes under 2 minutes.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Paste the Webhook URL into TradingView</h3>
+            <p>Copy your unique webhook URL from BoofCapital and add it to your TradingView alert. Set the JSON payload with your buy/sell signal.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h3>Sit Back — Orders Fire Automatically</h3>
+            <p>When TradingView fires an alert, BoofCapital receives it instantly and places the order with your broker. No manual action needed.</p>
+          </div>
         </div>
       </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-body">
-          <h3>Decide what you would like to trade</h3>
-          <p>Stocks, options, or futures — choose the asset class that fits your strategy and risk tolerance.</p>
+    </div>
+
+    <!-- STOCK / CRYPTO BOTS -->
+    <div class="how-panel" id="panel-stockbots">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Create a Stock or Crypto Bot</h3>
+            <p>Choose your symbol (e.g. SPY, BTC), pick a trading style — Scalper, Swing, or Position — and set your dollar amount per trade.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Select a Signal Strategy</h3>
+            <p>Pick from Boof 1.0 through 7.0 — each uses a different algorithmic approach, from SuperTrend to ML-style predictive models.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Connect Your Broker</h3>
+            <p>Link tastytrade for live trading or use the built-in paper account to test your bot risk-free first.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h3>Start the Bot</h3>
+            <p>Flip the toggle. The bot scans the market on its set interval, detects signals, and places trades automatically — 24/7.</p>
+          </div>
         </div>
       </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-body">
-          <h3>Set up your JSON</h3>
-          <p>Configure the alert that tells your broker what to buy or sell, and whether to go long or short.</p>
+    </div>
+
+    <!-- OPTIONS BOTS -->
+    <div class="how-panel" id="panel-optionsbots">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Create an Options Bot</h3>
+            <p>Select your underlying symbol and configure the bot to trade calls, puts, or both depending on market direction.</p>
+          </div>
         </div>
-      </div>
-      <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-body">
-          <h3>Take the emotion out of trading</h3>
-          <p>Let the system work for you. No second-guessing, no panic selling — just disciplined, automated execution.</p>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Set Expiry and Strike Rules</h3>
+            <p>Define how far out you want to trade (e.g. 0DTE, weekly) and the delta or strike selection method.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Connect tastytrade</h3>
+            <p>Options bots execute through tastytrade's live API. Authorize the connection once and the bot handles all order routing.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h3>Let the Bot Trade Options for You</h3>
+            <p>The bot monitors conditions, opens and closes options positions based on your rules — fully hands-off.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -752,5 +853,13 @@
     Contact: <a href="mailto:BoofCapital@gmail.com" style="color:var(--muted);text-decoration:none;">BoofCapital@gmail.com</a>
   </div>
 
+  <script>
+    function switchTab(id) {
+      document.querySelectorAll('.how-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.how-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('panel-' + id).classList.add('active');
+      event.target.classList.add('active');
+    }
+  </script>
 </body>
 </html>
