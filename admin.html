@@ -303,29 +303,29 @@
 
     async function reviewRequest(id, email, status) {
       const label = status === 'approved' ? 'Approve' : 'Deny';
-      confirm(
-        `${label} Request`,
-        status === 'approved'
-          ? `Approve access for ${email}? This will create their account so they can sign up.`
-          : `Deny access for ${email}?`,
-        async () => {
-          await sbClient.from('access_requests').update({ status, reviewed_at: new Date().toISOString() }).eq('id', id);
-          if (status === 'approved') {
-            const { error } = await sbClient.auth.admin.inviteUserByEmail(email).catch(() => ({ error: 'no admin' }));
-            if (error) {
-              // Fallback: use admin-users edge function
-              const { data: { session } } = await sbClient.auth.getSession();
-              await fetch(`${SUPABASE_URL}/functions/v1/admin-users`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'invite', email })
-              });
-            }
+      const msg = status === 'approved'
+        ? `Approve access for ${email}? An invite email will be sent so they can set up their account.`
+        : `Deny access for ${email}?`;
+      showConfirm(`${label} Request`, msg, async () => {
+        await sbClient.from('access_requests').update({ status, reviewed_at: new Date().toISOString() }).eq('id', id);
+        if (status === 'approved') {
+          const { data: { session } } = await sbClient.auth.getSession();
+          const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-users`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'apikey': SUPABASE_ANON_KEY,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action: 'invite', email })
+          });
+          const json = await res.json();
+          if (!res.ok) {
+            alert('Invite failed: ' + (json.error || res.status));
           }
-          await loadRequests();
-        },
-        status !== 'approved'
-      );
+        }
+        await loadRequests();
+      }, status !== 'approved');
     }
 
     function filterUsers() {
@@ -333,7 +333,7 @@
       renderUsers(allUsers.filter(u => u.email.toLowerCase().includes(q) || u.user_id.toLowerCase().includes(q)));
     }
 
-    function confirm(title, message, onConfirm, danger = true) {
+    function showConfirm(title, message, onConfirm, danger = true) {
       const modal = document.createElement('div');
       modal.className = 'confirm-modal';
       modal.innerHTML = `<div class="confirm-box">
