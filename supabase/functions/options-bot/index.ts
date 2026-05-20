@@ -537,11 +537,12 @@ function generateSignalBoof30(candles: Candle[], tradeDirection = 'both'): { sig
   const tooExtendedUp = priceVsEma > 0.5; // price > 0.5% above EMA21
   const tooExtendedDown = priceVsEma < -0.5; // price < 0.5% below EMA21
 
-  // ── PULLBACK REQUIREMENT: wait for 1 candle of retracement ──
+  // ── PULLBACK REQUIREMENT: wait for 2 consecutive candles of retracement ──
   const prevPrice = closes[i-1];
   const prev2Price = closes[i-2];
-  const isPullbackUp = closes[i] < prevPrice && prevPrice > prev2Price; // price pulled back from high
-  const isPullbackDown = closes[i] > prevPrice && prevPrice < prev2Price; // price pulled back from low
+  const prev3Price = closes[i-3];
+  const isPullbackUp = closes[i] < prevPrice && prevPrice < prev2Price && prev2Price > prev3Price; // price pulled back for 2 candles from high
+  const isPullbackDown = closes[i] > prevPrice && prevPrice > prev2Price && prev2Price < prev3Price; // price pulled back for 2 candles from low
 
   let sigVal = 0;
   if (regime === 'Trend' || regime === 'HighVol') {
@@ -867,6 +868,7 @@ function generateSignalBoof60(
   const curClose = closes[n - 1];
   const prevClose = closes[n - 2];
   const prev2Close = closes[n - 3];
+  const prev3Close = closes[n - 4];
 
   // Detect if running on 1m candles by checking average spacing between candles
   const avgSpacingSec = n > 2 ? (candles[n-1].time - candles[n-10].time) / (9 * 1000) : 300;
@@ -993,9 +995,9 @@ function generateSignalBoof60(
     }
   }
 
-  // ── FACTOR 9: PULLBACK REQUIREMENT: wait for 1 candle of retracement ──
-  const isPullbackUp = curClose < prevClose && prevClose > prev2Close; // price pulled back from high
-  const isPullbackDown = curClose > prevClose && prevClose < prev2Close; // price pulled back from low
+  // ── FACTOR 9: PULLBACK REQUIREMENT: wait for 2 consecutive candles of retracement ──
+  const isPullbackUp = curClose < prevClose && prevClose < prev2Close && prev2Close > prev3Close; // price pulled back for 2 candles from high
+  const isPullbackDown = curClose > prevClose && prevClose > prev2Close && prev2Close < prev3Close; // price pulled back for 2 candles from low
   if (trendBias === 'up' && !isPullbackUp) {
     return { signal: 'none', price: curClose, ema: ema15Val, adx: adxVal, reason: `Boof 6.0: BUY blocked — no pullback detected (cur=${curClose.toFixed(2)} prev=${prevClose.toFixed(2)} prev2=${prev2Close.toFixed(2)})` };
   }
